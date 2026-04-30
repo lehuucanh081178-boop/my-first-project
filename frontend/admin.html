@@ -143,27 +143,40 @@
 
     async function loadAdminBookings(status = '') {
       try {
-        const url = status ? `/admin/bookings/all?status=${status}` : '/admin/bookings/all';
-        // Dùng apiCall trực tiếp
-        const data = await apiCall ? apiCall(url) : { bookings: [] };
+        const data = await AdminAPI.allBookings(status);
         const tbody = document.getElementById('bookingsTableBody');
-        tbody.innerHTML = (data.bookings || []).map(b => `
+        const bookings = data.bookings || [];
+        if (!bookings.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Chua co don hang</td></tr>';
+          return;
+        }
+        tbody.innerHTML = bookings.map(b => {
+          const userName  = b.user?.name  || b.userName  || '—';
+          const readerName = b.reader?.name || b.readerName || '—';
+          return `
           <tr>
             <td><code>${b.id?.slice(0,8)}</code></td>
-            <td>${b.userName}</td>
-            <td>${b.readerName}</td>
+            <td>${userName}</td>
+            <td>${readerName}</td>
             <td>${b.packageName}</td>
-            <td style="color:var(--gold)">${b.price?.toLocaleString()}đ</td>
-            <td><span class="status-badge status-${b.status}">${b.status}</span></td>
+            <td style="color:var(--gold)">${(b.price||0).toLocaleString()}d</td>
+            <td><span class="status-badge status-${b.status}">${statusLabel(b.status)}</span></td>
             <td>
-              ${b.status === 'paid' ? `<button class="admin-btn-sm" onclick="confirmBooking('${b.id}')">✅ Xác nhận</button>` : ''}
-              ${b.status !== 'cancelled' && b.status !== 'completed' ? `<button class="admin-btn-sm danger" onclick="cancelBooking('${b.id}')">❌ Hủy</button>` : ''}
+              ${b.status === 'paid' ? `<button class="admin-btn-sm" onclick="confirmBooking('${b.id}')">Xac nhan</button>` : ''}
+              ${b.status !== 'cancelled' && b.status !== 'completed'
+                ? `<button class="admin-btn-sm danger" onclick="cancelBooking('${b.id}')">Huy</button>` : ''}
             </td>
-          </tr>
-        `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Chưa có đơn hàng</td></tr>';
+          </tr>`;
+        }).join('');
       } catch (err) {
-        document.getElementById('bookingsTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Lỗi tải dữ liệu</td></tr>';
+        document.getElementById('bookingsTableBody').innerHTML =
+          '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Loi tai du lieu</td></tr>';
       }
+    }
+
+    function statusLabel(s) {
+      const map = { pending:'Cho TT', paid:'Da TT', confirmed:'Xac nhan', completed:'Hoan thanh', cancelled:'Da huy' };
+      return map[s] || s;
     }
 
     async function loadAdminReaders() {
@@ -272,14 +285,14 @@
       } catch (err) { showToast('❌ Lỗi seed: ' + err.message); }
     }
 
-    function openAddReader() { showToast('🔧 Tính năng thêm reader đang phát triển'); }
+    function openAddReader() { showToast('Tinh nang them reader dang phat trien'); }
 
     function showTab(name, el) {
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       if (el) el.classList.add('active');
-      const titles = { stats:'Thống Kê', bookings:'Đơn Hàng', readers:'Readers', users:'Users', revenue:'Doanh Thu' };
+      const titles = { stats:'Thong Ke', bookings:'Don Hang', readers:'Readers', users:'Users', revenue:'Doanh Thu' };
       document.getElementById('dashTitle').textContent = titles[name] || name;
     }
 
@@ -289,21 +302,6 @@
       const t = document.getElementById('toast');
       t.textContent = msg; t.classList.add('show');
       setTimeout(() => t.classList.remove('show'), 3000);
-    }
-
-    // Expose apiCall cho admin page
-    async function apiCall(endpoint, options = {}) {
-      const token = localStorage.getItem('tarot_token');
-      const config = {
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
-        ...options,
-      };
-      if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
-      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
-      const res = await fetch(`${API_BASE}${endpoint}`, config);
-      const data = await res.json();
-      if (!res.ok) throw data;
-      return data;
     }
   </script>
 </body>

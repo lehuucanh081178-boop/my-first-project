@@ -1,109 +1,128 @@
-# 🔮 TarotLove — Nền tảng kết nối Tarot hàng đầu Việt Nam
+# TarotLove - Nen Tang Ket Noi Tarot
 
-TarotLove là ứng dụng web kết nối người dùng với các chuyên gia đọc bài Tarot. Người dùng có thể tìm kiếm reader, đặt lịch tư vấn, thanh toán trực tuyến và nhận kết quả qua email.
+Web app ket noi nguoi dung voi cac chuyen gia doc bai Tarot. Dat lich tu van, thanh toan truc tuyen, quan ly don hang.
 
 ---
 
-## 📁 Cấu trúc thư mục
+## Cau Truc Thu Muc
 
 ```
 tarotlove/
-├── 📁 frontend/                    ← Giao diện người dùng
-│   ├── index.html                  ← Trang chủ
-│   ├── dashboard.html              ← Trang cá nhân user
-│   ├── admin.html                  ← Trang quản trị
+├── frontend/
+│   ├── index.html              Trang chu
+│   ├── dashboard.html          Trang ca nhan user
+│   ├── admin.html              Trang quan tri
+│   ├── booking-success.html    Trang sau thanh toan
 │   └── assets/
 │       ├── css/
-│       │   ├── style.css           ← CSS chính
-│       │   ├── dashboard.css       ← CSS dashboard
-│       │   └── admin.css           ← CSS admin
-│       ├── js/
-│       │   ├── api.js              ← Kết nối API
-│       │   └── app.js              ← Logic trang chủ
-│       └── img/                    ← Hình ảnh tĩnh
+│       │   ├── style.css
+│       │   ├── dashboard.css
+│       │   └── admin.css
+│       └── js/
+│           ├── api.js          Ket noi API backend
+│           └── app.js          Logic trang chu
 │
-├── 📁 backend/                     ← Server Node.js + Express
-│   ├── server.js                   ← Entry point
-│   ├── 📁 config/
-│   │   ├── db.js                   ← Kết nối SQL Server
-│   │   ├── email.js                ← Cấu hình gửi email
-│   │   └── database.sql            ← Schema SQL Server
-│   ├── 📁 models/
-│   │   └── index.js                ← Sequelize models
-│   ├── 📁 routes/
-│   │   ├── auth.js                 ← Đăng ký / Đăng nhập
-│   │   ├── readers.js              ← Quản lý reader
-│   │   ├── bookings.js             ← Đặt lịch
-│   │   ├── payment.js              ← Thanh toán MoMo
-│   │   └── admin.js                ← Admin API
-│   └── 📁 middleware/
-│       └── auth.js                 ← Xác thực JWT
+├── backend/
+│   ├── server.js               Entry point
+│   ├── config/
+│   │   ├── db.js               Ket noi SQL Server
+│   │   ├── email.js            Gui email
+│   │   └── database.sql        Schema + seed data
+│   ├── models/
+│   │   └── index.js            Sequelize models
+│   ├── routes/
+│   │   ├── auth.js             Dang ky / Dang nhap
+│   │   ├── readers.js          Reader API
+│   │   ├── bookings.js         Dat lich API
+│   │   ├── payment.js          Thanh toan MoMo / Bank
+│   │   └── admin.js            Admin API
+│   └── middleware/
+│       └── auth.js             Xac thuc JWT
 │
-├── .env                            ← Biến môi trường (không commit)
-├── .env.example                    ← Mẫu biến môi trường
-├── .gitignore
+├── .env                        Bien moi truong (khong commit)
+├── .env.example                Mau bien moi truong
 ├── package.json
 └── README.md
 ```
 
 ---
 
-## ⚙️ Yêu cầu hệ thống
+## Yeu Cau He Thong
 
-| Công cụ | Phiên bản tối thiểu |
-|---|---|
-| Node.js | v18+ |
-| npm | v9+ |
-| SQL Server | 2019+ (hoặc SQL Server Express) |
-| Git | Bất kỳ |
+| Cong cu     | Phien ban |
+|-------------|-----------|
+| Node.js     | v18+      |
+| npm         | v9+       |
+| SQL Server  | 2019+     |
 
 ---
 
-## 🚀 Hướng dẫn cài đặt
+## Cai Dat
 
-### 1. Clone repository
+### 1. Clone repo
 
 ```bash
 git clone https://github.com/lehuucanh081178-boop/my-first-project.git
 cd my-first-project
-```
-
-### 2. Cài đặt dependencies
-
-```bash
 npm install
 ```
 
-### 3. Cấu hình biến môi trường
-
-Sao chép file mẫu và điền thông tin thực tế:
+### 2. Tao file .env
 
 ```bash
 copy .env.example .env
 ```
 
-Mở `.env` và cập nhật các giá trị:
+Chinh sua `.env` voi thong tin thuc te (xem phan ben duoi).
+
+### 3. Tao database
+
+Mo SSMS, ket noi vao SQL Server, chay file:
+
+```
+backend/config/database.sql
+```
+
+### 4. Chay server
+
+```bash
+# Development (tu dong reload)
+npm run dev
+
+# Production
+npm start
+```
+
+Mo trinh duyet: **http://localhost:3000**
+
+---
+
+## Cau Hinh .env
 
 ```env
 # SQL Server
 DB_HOST=localhost
 DB_PORT=1433
 DB_NAME=TarotLoveDB
-DB_USER=                    # Để trống nếu dùng Windows Authentication
-DB_PASS=
-DB_INSTANCE=                # Ví dụ: SQLEXPRESS (nếu dùng named instance)
+DB_USER=tarotlove_user
+DB_PASS=mat_khau_cua_ban
 
-# JWT
-JWT_SECRET=your_secret_key_here
+# JWT - dat chuoi ngau nhien dai it nhat 32 ky tu
+JWT_SECRET=thay_bang_chuoi_bi_mat_that_su_cua_ban
 
-# Email (Gmail App Password)
+# Email Gmail (tao App Password tai myaccount.google.com/apppasswords)
 EMAIL_USER=your@gmail.com
-EMAIL_PASS=your_16_char_app_password
+EMAIL_PASS=xxxx_xxxx_xxxx_xxxx
 
-# MoMo Sandbox
+# MoMo (sandbox de test, thay bang production khi go-live)
 MOMO_PARTNER_CODE=MOMO
-MOMO_ACCESS_KEY=your_access_key
-MOMO_SECRET_KEY=your_secret_key
+MOMO_ACCESS_KEY=F8BBA842ECF85
+MOMO_SECRET_KEY=K951B6PE1waDMi640xX08PD3vg6EkVlz
+
+# Ngan hang nhan tien
+BANK_NAME=Vietcombank
+BANK_ACCOUNT=so_tai_khoan_cua_ban
+BANK_OWNER=TEN_CHU_TAI_KHOAN
 
 # Server
 PORT=3000
@@ -112,160 +131,117 @@ FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:3000
 ```
 
-### 4. Tạo database
-
-Mở SQL Server Management Studio (SSMS), kết nối vào server và chạy file schema:
-
-```
-backend/config/database.sql
-```
-
 ---
 
-## 🏃 Chạy ứng dụng
-
-### Development (tự động reload khi sửa code)
-
-```bash
-npm run dev
-```
-
-### Production
-
-```bash
-npm start
-```
-
-Ứng dụng chạy tại: **http://localhost:3000**
-
-| Trang | URL |
-|---|---|
-| Trang chủ | http://localhost:3000 |
-| Dashboard | http://localhost:3000/dashboard.html |
-| Admin | http://localhost:3000/admin.html |
-
----
-
-## 📡 API Endpoints
+## API Endpoints
 
 Base URL: `http://localhost:3000/api`
 
-### 🔐 Auth — `/api/auth`
+### Auth
+| Method | Endpoint            | Mo ta                    |
+|--------|---------------------|--------------------------|
+| POST   | /auth/register      | Dang ky tai khoan        |
+| POST   | /auth/login         | Dang nhap                |
+| GET    | /auth/me            | Thong tin user hien tai  |
 
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| POST | `/api/auth/register` | Đăng ký tài khoản mới |
-| POST | `/api/auth/login` | Đăng nhập |
-| POST | `/api/auth/logout` | Đăng xuất |
-| GET | `/api/auth/me` | Lấy thông tin user hiện tại |
-| POST | `/api/auth/forgot-password` | Gửi email đặt lại mật khẩu |
-| POST | `/api/auth/reset-password` | Đặt lại mật khẩu |
+### Readers
+| Method | Endpoint            | Mo ta                    |
+|--------|---------------------|--------------------------|
+| GET    | /readers            | Danh sach reader         |
+| GET    | /readers/:id        | Chi tiet reader          |
+| POST   | /readers/:id/review | Danh gia reader          |
+| PATCH  | /readers/:id        | Cap nhat reader (admin)  |
 
-### 🔮 Readers — `/api/readers`
+### Bookings
+| Method | Endpoint                  | Mo ta                    |
+|--------|---------------------------|--------------------------|
+| POST   | /bookings                 | Tao don dat lich         |
+| GET    | /bookings/my              | Lich su dat cua user     |
+| GET    | /bookings/all             | Tat ca don (admin)       |
+| PATCH  | /bookings/:id/status      | Cap nhat trang thai      |
+| GET    | /bookings/notifications   | Thong bao cua user       |
 
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| GET | `/api/readers` | Danh sách tất cả reader |
-| GET | `/api/readers/:id` | Chi tiết một reader |
-| POST | `/api/readers` | Tạo hồ sơ reader (auth) |
-| PUT | `/api/readers/:id` | Cập nhật hồ sơ reader (auth) |
-| DELETE | `/api/readers/:id` | Xóa reader (admin) |
+### Payment
+| Method | Endpoint              | Mo ta                        |
+|--------|-----------------------|------------------------------|
+| POST   | /payment/momo         | Tao link thanh toan MoMo     |
+| POST   | /payment/momo/callback| MoMo IPN callback            |
+| POST   | /payment/bank         | Thong tin chuyen khoan       |
+| POST   | /payment/confirm      | Admin xac nhan da nhan tien  |
+| GET    | /payment/history      | Lich su thanh toan           |
 
-### 📅 Bookings — `/api/bookings`
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| GET | `/api/bookings` | Danh sách lịch đặt của user |
-| POST | `/api/bookings` | Tạo lịch đặt mới |
-| GET | `/api/bookings/:id` | Chi tiết một booking |
-| PUT | `/api/bookings/:id` | Cập nhật trạng thái booking |
-| DELETE | `/api/bookings/:id` | Hủy booking |
-
-### 💳 Payment — `/api/payment`
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| POST | `/api/payment/momo` | Khởi tạo thanh toán MoMo |
-| POST | `/api/payment/momo/callback` | Callback từ MoMo |
-| GET | `/api/payment/status/:orderId` | Kiểm tra trạng thái thanh toán |
-
-### 🛡️ Admin — `/api/admin`
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| GET | `/api/admin/users` | Danh sách tất cả user |
-| GET | `/api/admin/stats` | Thống kê tổng quan |
-| PUT | `/api/admin/users/:id/status` | Khóa / mở khóa tài khoản |
-| GET | `/api/admin/bookings` | Tất cả lịch đặt |
+### Admin
+| Method | Endpoint              | Mo ta                    |
+|--------|-----------------------|--------------------------|
+| GET    | /admin/stats          | Thong ke tong quan       |
+| GET    | /admin/users          | Danh sach users          |
+| PATCH  | /admin/users/:id      | Cap nhat user            |
+| GET    | /admin/revenue        | Doanh thu theo ngay      |
+| GET    | /admin/bookings/all   | Tat ca don hang          |
+| POST   | /admin/seed           | Seed du lieu mau         |
 
 ---
 
-## 🗄️ Database
+## Tao Tai Khoan Admin
 
-Dự án sử dụng **SQL Server** với ORM **Sequelize**.
+Sau khi dang ky tai khoan binh thuong, chay lenh SQL nay trong SSMS:
 
-- File schema: `backend/config/database.sql`
-- Kết nối: `backend/config/db.js`
-- Models: `backend/models/index.js`
-
-### Kết nối Windows Authentication (khuyên dùng)
-
-Để `DB_USER` và `DB_PASS` trống trong `.env`. Sequelize sẽ tự dùng Windows Authentication.
-
-### Kết nối SQL Authentication
-
-Điền `DB_USER` và `DB_PASS` vào `.env`.
+```sql
+USE TarotLoveDB;
+UPDATE Users SET role = 'admin' WHERE email = 'email_cua_ban@gmail.com';
+```
 
 ---
 
-## 🌐 Deploy
+## Checklist Truoc Khi Deploy
 
-### Chuẩn bị
+- [ ] Doi `JWT_SECRET` thanh chuoi ngau nhien manh (32+ ky tu)
+- [ ] Dien `EMAIL_USER` va `EMAIL_PASS` that
+- [ ] Dien thong tin ngan hang that (`BANK_ACCOUNT`, `BANK_OWNER`)
+- [ ] Dang ky MoMo Business de lay key production
+- [ ] Dat `NODE_ENV=production`
+- [ ] Cap nhat `FRONTEND_URL` va `BACKEND_URL` thanh domain that
+- [ ] Cai HTTPS cho domain
+- [ ] Tao tai khoan admin
 
-1. Đặt `NODE_ENV=production` trong `.env`
-2. Cập nhật `FRONTEND_URL` và `BACKEND_URL` thành domain thực tế
-3. Đảm bảo SQL Server production đã được cấu hình và chạy schema
+---
 
-### Deploy lên VPS / Server
+## Deploy Len Server
 
 ```bash
-# Cài Node.js và PM2
+# Cai PM2
 npm install -g pm2
 
-# Clone và cài đặt
-git clone https://github.com/lehuucanh081178-boop/my-first-project.git
-cd my-first-project
-npm install --production
-
-# Cấu hình .env production
-copy .env.example .env
-# (chỉnh sửa .env với thông tin production)
-
-# Chạy với PM2
+# Chay app
 pm2 start backend/server.js --name tarotlove
 pm2 save
 pm2 startup
-```
 
-### Kiểm tra logs
-
-```bash
+# Xem logs
 pm2 logs tarotlove
 pm2 status
 ```
 
 ---
 
-## 🤝 Đóng góp
+## Luu Y Ve MoMo
 
-1. Fork repository
-2. Tạo branch mới: `git checkout -b feature/ten-tinh-nang`
-3. Commit thay đổi: `git commit -m "feat: mô tả tính năng"`
-4. Push lên branch: `git push origin feature/ten-tinh-nang`
-5. Tạo Pull Request
+MoMo callback (`/api/payment/momo/callback`) can URL HTTPS public de MoMo goi ve.
+Khi chay local, dung **ngrok** de test:
+
+```bash
+# Cai ngrok
+npm install -g ngrok
+
+# Tao tunnel
+ngrok http 3000
+
+# Copy URL https://xxxx.ngrok.io vao .env
+BACKEND_URL=https://xxxx.ngrok.io
+```
 
 ---
 
-## 📄 License
+## License
 
-MIT © 2024 TarotLove Team
+MIT - TarotLove 2024
