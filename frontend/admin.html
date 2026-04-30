@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - TarotLove</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dashboard-body">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">🔮 Admin</div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link active" onclick="showTab('stats',this)"><i class="fas fa-chart-bar"></i> Thống kê</a>
+      <a class="sidebar-link" onclick="showTab('bookings',this)"><i class="fas fa-calendar"></i> Đơn hàng</a>
+      <a class="sidebar-link" onclick="showTab('readers',this)"><i class="fas fa-star"></i> Readers</a>
+      <a class="sidebar-link" onclick="showTab('users',this)"><i class="fas fa-users"></i> Users</a>
+      <a class="sidebar-link" onclick="showTab('revenue',this)"><i class="fas fa-coins"></i> Doanh thu</a>
+      <hr style="border-color:var(--border);margin:12px 0">
+      <a href="index.html" class="sidebar-link"><i class="fas fa-arrow-left"></i> Trang chủ</a>
+      <a href="#" class="sidebar-link logout-link" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Đăng xuất</a>
+    </nav>
+  </aside>
+
+  <main class="dash-main">
+    <div class="dash-header">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h1 class="dash-title" id="dashTitle">Thống Kê</h1>
+      <div class="admin-badge">👑 Admin Panel</div>
+    </div>
+
+    <!-- TAB: STATS -->
+    <div class="tab-content active" id="tab-stats">
+      <div class="stats-row" id="adminStats">
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-info"><span class="stat-val" id="s-users">—</span><span class="stat-lbl">Tổng Users</span></div></div>
+        <div class="stat-card"><div class="stat-icon">🔮</div><div class="stat-info"><span class="stat-val" id="s-readers">—</span><span class="stat-lbl">Readers</span></div></div>
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-info"><span class="stat-val" id="s-bookings">—</span><span class="stat-lbl">Tổng Đơn</span></div></div>
+        <div class="stat-card highlight-card"><div class="stat-icon">💰</div><div class="stat-info"><span class="stat-val" id="s-revenue">—</span><span class="stat-lbl">Tổng Doanh Thu</span></div></div>
+      </div>
+      <div class="stats-row" style="margin-top:16px">
+        <div class="stat-card"><div class="stat-icon">📆</div><div class="stat-info"><span class="stat-val" id="s-today-bookings">—</span><span class="stat-lbl">Đơn Hôm Nay</span></div></div>
+        <div class="stat-card"><div class="stat-icon">💵</div><div class="stat-info"><span class="stat-val" id="s-today-revenue">—</span><span class="stat-lbl">Doanh Thu Hôm Nay</span></div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-info"><span class="stat-val" id="s-pending">—</span><span class="stat-lbl">Chờ Xử Lý</span></div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info"><span class="stat-val" id="s-completed">—</span><span class="stat-lbl">Hoàn Thành</span></div></div>
+      </div>
+      <div class="admin-actions">
+        <button class="admin-btn" onclick="seedData()">🌱 Seed Dữ Liệu Mẫu</button>
+        <button class="admin-btn" onclick="loadStats()">🔄 Làm Mới</button>
+      </div>
+    </div>
+
+    <!-- TAB: BOOKINGS -->
+    <div class="tab-content" id="tab-bookings">
+      <div class="tab-toolbar">
+        <h3>Quản Lý Đơn Hàng</h3>
+        <select onchange="loadAdminBookings(this.value)">
+          <option value="">Tất cả</option>
+          <option value="pending">Chờ thanh toán</option>
+          <option value="paid">Đã thanh toán</option>
+          <option value="completed">Hoàn thành</option>
+          <option value="cancelled">Đã hủy</option>
+        </select>
+      </div>
+      <div id="adminBookings" class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Reader</th><th>Gói</th><th>Giá</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
+          <tbody id="bookingsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: READERS -->
+    <div class="tab-content" id="tab-readers">
+      <div class="tab-toolbar">
+        <h3>Quản Lý Readers</h3>
+        <button class="admin-btn" onclick="openAddReader()">+ Thêm Reader</button>
+      </div>
+      <div id="adminReaders" class="readers-admin-grid"></div>
+    </div>
+
+    <!-- TAB: USERS -->
+    <div class="tab-content" id="tab-users">
+      <div class="tab-toolbar"><h3>Quản Lý Users</h3></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Tên</th><th>Email</th><th>Role</th><th>Ngày tạo</th><th>Hành động</th></tr></thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: REVENUE -->
+    <div class="tab-content" id="tab-revenue">
+      <div class="tab-toolbar">
+        <h3>Báo Cáo Doanh Thu</h3>
+        <select onchange="loadRevenue(this.value)">
+          <option value="7">7 ngày</option>
+          <option value="30" selected>30 ngày</option>
+          <option value="90">90 ngày</option>
+        </select>
+      </div>
+      <div id="revenueList" class="revenue-list"></div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script src="assets/js/api.js"></script>
+  <script>
+    if (!Auth.isLoggedIn() || Auth.getUser()?.role !== 'admin') {
+      alert('Bạn không có quyền truy cập trang này');
+      window.location.href = 'index.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadAdminBookings();
+      loadAdminReaders();
+      loadAdminUsers();
+      loadRevenue(30);
+    });
+
+    async function loadStats() {
+      try {
+        const { stats } = await AdminAPI.stats();
+        document.getElementById('s-users').textContent = stats.totalUsers;
+        document.getElementById('s-readers').textContent = stats.totalReaders;
+        document.getElementById('s-bookings').textContent = stats.totalBookings;
+        document.getElementById('s-revenue').textContent = stats.totalRevenue.toLocaleString() + 'đ';
+        document.getElementById('s-today-bookings').textContent = stats.todayBookings;
+        document.getElementById('s-today-revenue').textContent = stats.todayRevenue.toLocaleString() + 'đ';
+        document.getElementById('s-pending').textContent = stats.pendingBookings;
+        document.getElementById('s-completed').textContent = stats.completedBookings;
+      } catch (err) {
+        showToast('❌ Lỗi tải thống kê: ' + (err.message || 'Server chưa chạy'));
+      }
+    }
+
+    async function loadAdminBookings(status = '') {
+      try {
+        const url = status ? `/admin/bookings/all?status=${status}` : '/admin/bookings/all';
+        // Dùng apiCall trực tiếp
+        const data = await apiCall ? apiCall(url) : { bookings: [] };
+        const tbody = document.getElementById('bookingsTableBody');
+        tbody.innerHTML = (data.bookings || []).map(b => `
+          <tr>
+            <td><code>${b.id?.slice(0,8)}</code></td>
+            <td>${b.userName}</td>
+            <td>${b.readerName}</td>
+            <td>${b.packageName}</td>
+            <td style="color:var(--gold)">${b.price?.toLocaleString()}đ</td>
+            <td><span class="status-badge status-${b.status}">${b.status}</span></td>
+            <td>
+              ${b.status === 'paid' ? `<button class="admin-btn-sm" onclick="confirmBooking('${b.id}')">✅ Xác nhận</button>` : ''}
+              ${b.status !== 'cancelled' && b.status !== 'completed' ? `<button class="admin-btn-sm danger" onclick="cancelBooking('${b.id}')">❌ Hủy</button>` : ''}
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Chưa có đơn hàng</td></tr>';
+      } catch (err) {
+        document.getElementById('bookingsTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Lỗi tải dữ liệu</td></tr>';
+      }
+    }
+
+    async function loadAdminReaders() {
+      try {
+        const { readers } = await ReadersAPI.getAll();
+        document.getElementById('adminReaders').innerHTML = readers.map(r => `
+          <div class="reader-admin-card">
+            <img src="${r.img}" alt="${r.name}" class="reader-admin-img">
+            <div class="reader-admin-info">
+              <strong>${r.name}</strong>
+              <span>${r.title}</span>
+              <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                <span class="${r.online ? 'online-dot' : 'offline-dot'}">${r.online ? '🟢 Online' : '🔴 Offline'}</span>
+                <span style="color:var(--gold)">⭐ ${r.stars}</span>
+                <span style="color:var(--text-muted)">${r.sessions} lượt</span>
+              </div>
+            </div>
+            <div class="reader-admin-actions">
+              <button class="admin-btn-sm" onclick="toggleOnline('${r.id}', ${!r.online})">${r.online ? 'Set Offline' : 'Set Online'}</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        document.getElementById('adminReaders').innerHTML = '<p style="color:var(--text-muted)">Lỗi tải readers</p>';
+      }
+    }
+
+    async function loadAdminUsers() {
+      try {
+        const { users } = await AdminAPI.users();
+        document.getElementById('usersTableBody').innerHTML = users.map(u => `
+          <tr>
+            <td>${u.name}</td>
+            <td>${u.email}</td>
+            <td><span class="role-badge">${u.role}</span></td>
+            <td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td>
+            <td>
+              ${u.role !== 'admin' ? `<button class="admin-btn-sm" onclick="makeAdmin('${u.uid}')">Make Admin</button>` : ''}
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" style="text-align:center">Chưa có users</td></tr>';
+      } catch (err) {
+        document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Lỗi tải users</td></tr>';
+      }
+    }
+
+    async function loadRevenue(days) {
+      try {
+        const { revenue } = await AdminAPI.revenue(days);
+        const total = revenue.reduce((s, r) => s + r.revenue, 0);
+        document.getElementById('revenueList').innerHTML = `
+          <div class="revenue-total">Tổng: <strong style="color:var(--gold)">${total.toLocaleString()}đ</strong></div>
+          ${revenue.map(r => `
+            <div class="revenue-row">
+              <span>${r.date}</span>
+              <span>${r.count} đơn</span>
+              <span style="color:var(--gold);font-weight:700">${r.revenue.toLocaleString()}đ</span>
+              <div class="revenue-bar" style="width:${Math.min(100, r.revenue/total*100)}%"></div>
+            </div>
+          `).join('')}
+        `;
+      } catch (err) {
+        document.getElementById('revenueList').innerHTML = '<p style="color:var(--text-muted)">Lỗi tải doanh thu</p>';
+      }
+    }
+
+    async function confirmBooking(id) {
+      try {
+        await apiCall('/payment/confirm', { method: 'POST', body: { bookingId: id } });
+        showToast('✅ Xác nhận thanh toán thành công');
+        loadAdminBookings();
+      } catch (err) { showToast('❌ Lỗi xác nhận'); }
+    }
+
+    async function cancelBooking(id) {
+      if (!confirm('Hủy đơn này?')) return;
+      try {
+        await BookingsAPI.updateStatus(id, 'cancelled');
+        showToast('✅ Đã hủy đơn');
+        loadAdminBookings();
+      } catch (err) { showToast('❌ Lỗi hủy đơn'); }
+    }
+
+    async function toggleOnline(id, online) {
+      try {
+        await ReadersAPI.update ? ReadersAPI.update(id, { online }) : apiCall(`/readers/${id}`, { method: 'PATCH', body: { online } });
+        showToast(`✅ Đã ${online ? 'bật' : 'tắt'} online`);
+        loadAdminReaders();
+      } catch (err) { showToast('❌ Lỗi cập nhật'); }
+    }
+
+    async function makeAdmin(uid) {
+      if (!confirm('Cấp quyền Admin cho user này?')) return;
+      try {
+        await AdminAPI.updateUser(uid, { role: 'admin' });
+        showToast('✅ Đã cấp quyền Admin');
+        loadAdminUsers();
+      } catch (err) { showToast('❌ Lỗi cập nhật'); }
+    }
+
+    async function seedData() {
+      try {
+        const r = await AdminAPI.seed();
+        showToast('✅ ' + r.message);
+        loadStats();
+      } catch (err) { showToast('❌ Lỗi seed: ' + err.message); }
+    }
+
+    function openAddReader() { showToast('🔧 Tính năng thêm reader đang phát triển'); }
+
+    function showTab(name, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      if (el) el.classList.add('active');
+      const titles = { stats:'Thống Kê', bookings:'Đơn Hàng', readers:'Readers', users:'Users', revenue:'Doanh Thu' };
+      document.getElementById('dashTitle').textContent = titles[name] || name;
+    }
+
+    function handleLogout() { Auth.logout(); window.location.href = 'index.html'; }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // Expose apiCall cho admin page
+    async function apiCall(endpoint, options = {}) {
+      const token = localStorage.getItem('tarot_token');
+      const config = {
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+        ...options,
+      };
+      if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
+      const res = await fetch(`${API_BASE}${endpoint}`, config);
+      const data = await res.json();
+      if (!res.ok) throw data;
+      return data;
+    }
+  </script>
+</body>
+</html>

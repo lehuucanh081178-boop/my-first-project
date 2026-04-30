@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tài Khoản - TarotLove</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dashboard-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">🔮 TarotLove</div>
+    <nav class="sidebar-nav">
+      <a href="#overview"  class="sidebar-link active" onclick="showTab('overview',this)">
+        <i class="fas fa-home"></i> Tổng quan
+      </a>
+      <a href="#bookings"  class="sidebar-link" onclick="showTab('bookings',this)">
+        <i class="fas fa-calendar-alt"></i> Lịch đặt
+      </a>
+      <a href="#profile"   class="sidebar-link" onclick="showTab('profile',this)">
+        <i class="fas fa-user"></i> Hồ sơ
+      </a>
+      <a href="index.html" class="sidebar-link">
+        <i class="fas fa-arrow-left"></i> Trang chủ
+      </a>
+      <a href="#" class="sidebar-link logout-link" onclick="handleLogout()">
+        <i class="fas fa-sign-out-alt"></i> Đăng xuất
+      </a>
+    </nav>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="dash-main">
+    <!-- Header -->
+    <div class="dash-header">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h1 class="dash-title" id="dashTitle">Tổng Quan</h1>
+      <div class="dash-user" id="dashUser"></div>
+    </div>
+
+    <!-- TAB: OVERVIEW -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="welcome-banner">
+        <div>
+          <h2 id="welcomeName">Chào mừng trở lại! 👋</h2>
+          <p>Khám phá những nhà tarot uy tín và tìm câu trả lời cho tình yêu của bạn.</p>
+        </div>
+        <a href="index.html#readers" class="btn-cta" style="text-decoration:none;font-size:.9rem;padding:12px 24px">
+          Đặt Lịch Ngay <i class="fas fa-arrow-right"></i>
+        </a>
+      </div>
+
+      <div class="stats-row" id="userStats">
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-info">
+            <span class="stat-val" id="totalBookings">0</span>
+            <span class="stat-lbl">Tổng lượt đặt</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <span class="stat-val" id="completedBookings">0</span>
+            <span class="stat-lbl">Đã hoàn thành</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <div class="stat-info">
+            <span class="stat-val" id="totalSpent">0đ</span>
+            <span class="stat-lbl">Đã chi tiêu</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section-label">Lịch đặt gần đây</h3>
+      <div id="recentBookings" class="bookings-list"></div>
+    </div>
+
+    <!-- TAB: BOOKINGS -->
+    <div class="tab-content" id="tab-bookings">
+      <div class="tab-toolbar">
+        <h3>Lịch Sử Đặt Lịch</h3>
+        <select id="bookingFilter" onchange="filterBookings(this.value)">
+          <option value="all">Tất cả</option>
+          <option value="pending">Chờ thanh toán</option>
+          <option value="paid">Đã thanh toán</option>
+          <option value="completed">Hoàn thành</option>
+          <option value="cancelled">Đã hủy</option>
+        </select>
+      </div>
+      <div id="allBookings" class="bookings-list"></div>
+    </div>
+
+    <!-- TAB: PROFILE -->
+    <div class="tab-content" id="tab-profile">
+      <div class="profile-card">
+        <div class="profile-avatar" id="profileAvatar">U</div>
+        <div class="profile-info">
+          <h2 id="profileName">Tên người dùng</h2>
+          <p id="profileEmail" style="color:var(--text-muted)">email@example.com</p>
+          <span class="role-badge" id="profileRole">User</span>
+        </div>
+      </div>
+      <form class="profile-form" onsubmit="updateProfile(event)">
+        <div class="form-group">
+          <label>Họ và tên</label>
+          <input type="text" id="editName" placeholder="Tên của bạn">
+        </div>
+        <div class="form-group">
+          <label>Số điện thoại</label>
+          <input type="tel" id="editPhone" placeholder="0xxx xxx xxx">
+        </div>
+        <div class="form-group">
+          <label>Mật khẩu mới (để trống nếu không đổi)</label>
+          <input type="password" id="editPassword" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn-submit" style="max-width:200px">Lưu thay đổi</button>
+      </form>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="assets/js/api.js"></script>
+  <script>
+    // Kiểm tra đăng nhập
+    if (!Auth.isLoggedIn()) {
+      window.location.href = 'index.html';
+    }
+
+    let allBookingsData = [];
+    const user = Auth.getUser();
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!user) return;
+
+      // Hiện thông tin user
+      document.getElementById('welcomeName').textContent = `Chào mừng ${user.name}! 👋`;
+      document.getElementById('dashUser').innerHTML = `
+        <div class="user-avatar-mini">${user.name?.charAt(0)}</div>
+        <span>${user.name}</span>
+      `;
+      document.getElementById('profileAvatar').textContent = user.name?.charAt(0);
+      document.getElementById('profileName').textContent = user.name;
+      document.getElementById('profileEmail').textContent = user.email;
+      document.getElementById('profileRole').textContent = user.role === 'admin' ? '👑 Admin' : '👤 User';
+      document.getElementById('editName').value = user.name || '';
+
+      // Load bookings
+      await loadMyBookings();
+
+      // Check hash
+      if (window.location.hash === '#bookings') {
+        showTab('bookings', document.querySelector('[onclick*="bookings"]'));
+      }
+    });
+
+    async function loadMyBookings() {
+      try {
+        const data = await BookingsAPI.myBookings();
+        allBookingsData = data.bookings || [];
+        renderBookingStats(allBookingsData);
+        renderBookings(allBookingsData.slice(0, 3), 'recentBookings');
+        renderBookings(allBookingsData, 'allBookings');
+      } catch (err) {
+        document.getElementById('recentBookings').innerHTML = '<p style="color:var(--text-muted)">Chưa có lịch đặt nào.</p>';
+      }
+    }
+
+    function renderBookingStats(bookings) {
+      const completed = bookings.filter(b => b.status === 'completed');
+      const spent = bookings.filter(b => b.paymentStatus === 'paid').reduce((s, b) => s + b.price, 0);
+      document.getElementById('totalBookings').textContent = bookings.length;
+      document.getElementById('completedBookings').textContent = completed.length;
+      document.getElementById('totalSpent').textContent = spent.toLocaleString() + 'đ';
+    }
+
+    function renderBookings(bookings, containerId) {
+      const el = document.getElementById(containerId);
+      if (!bookings.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);padding:20px 0">Chưa có lịch đặt nào.</p>';
+        return;
+      }
+      el.innerHTML = bookings.map(b => `
+        <div class="booking-item">
+          <div class="booking-icon">🔮</div>
+          <div class="booking-info">
+            <strong>${b.readerName}</strong>
+            <span>${b.packageName} — ${b.price?.toLocaleString()}đ</span>
+            <span style="font-size:.75rem;color:var(--text-muted)">${new Date(b.createdAt).toLocaleDateString('vi-VN')}</span>
+          </div>
+          <div class="booking-status status-${b.status}">${statusLabel(b.status)}</div>
+          ${b.status === 'pending' ? `<button class="btn-pay-now" onclick="goPayBooking('${b.id}','${b.price}')">Thanh toán</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function filterBookings(status) {
+      const filtered = status === 'all' ? allBookingsData : allBookingsData.filter(b => b.status === status);
+      renderBookings(filtered, 'allBookings');
+    }
+
+    function statusLabel(s) {
+      const map = { pending:'⏳ Chờ TT', paid:'💳 Đã TT', confirmed:'✅ Xác nhận', completed:'🎉 Hoàn thành', cancelled:'❌ Đã hủy' };
+      return map[s] || s;
+    }
+
+    function goPayBooking(id, price) {
+      window.location.href = `index.html?pay=${id}`;
+    }
+
+    function showTab(name, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      if (el) el.classList.add('active');
+      document.getElementById('dashTitle').textContent = {
+        overview: 'Tổng Quan', bookings: 'Lịch Đặt', profile: 'Hồ Sơ'
+      }[name] || name;
+    }
+
+    function updateProfile(e) {
+      e.preventDefault();
+      showToast('✅ Cập nhật thành công! (Tính năng đầy đủ cần backend)');
+    }
+
+    function handleLogout() {
+      Auth.logout();
+      window.location.href = 'index.html';
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+  </script>
+</body>
+</html>
