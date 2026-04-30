@@ -1,15 +1,15 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const router  = express.Router();
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const { getDb } = require('../config/firebase');
+const { v4: uuidv4 } = require('uuid');
+const { User } = require('../models');
 
-// Helper tạo JWT
 function signToken(user) {
   return jwt.sign(
     { uid: user.uid, email: user.email, role: user.role, name: user.name },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'tarotlove_secret_2024',
     { expiresIn: '7d' }
   );
 }
@@ -21,47 +21,24 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Mật khẩu tối thiểu 6 ký tự'),
 ], async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
+  if (!errors.isEmpty())
     return res.status(400).json({ success: false, errors: errors.array() });
-  }
 
   const { name, email, password, phone } = req.body;
-
   try {
-    const db = getDb();
-    // Kiểm tra email đã tồn tại chưa
-    const existing = await db.collection('users').where('email', '==', email).get();
-    if (!existing.empty) {
+    const existing = await User.findOne({ where: { email } });
+    if (existing)
       return res.status(409).json({ success: false, message: 'Email đã được sử dụng' });
-    }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const uid = require('uuid').v4();
-
-    const userData = {
-      uid,
-      name,
-      email,
-      phone: phone || '',
-      password: hashedPassword,
-      role: 'user',
-      avatar: '',
-      createdAt: new Date().toISOString(),
-      totalBookings: 0,
-      balance: 0,
-    };
-
-    await db.collection('users').doc(uid).set(userData);
-
-    const token = signToken(userData);
-    const { password: _, ...safeUser } = userData;
-
-    res.status(201).json({
-      success: true,
-      message: 'Đăng ký thành công!',
-      token,
-      user: safeUser,
+    const hashed = await bcrypt.hash(password, 12);
+    const user = await User.create({
+      uid: uuidv4(), name, email, phone: phone || '',
+      password: hashed, role: 'user',
     });
+
+    const token = signToken(user);
+    const { password: _, ...safe } = user.toJSON();
+    res.status(201).json({ success: true, message: 'Đăng ký thành công!', token, user: safe });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ success: false, message: 'Lỗi server' });
@@ -70,56 +47,40 @@ router.post('/register', [
 
 // POST /api/auth/login
 router.post('/login', [
-  body('email').isEmail().withMessage('Email không hợp lệ'),
-  body('password').notEmpty().withMessage('Mật khẩu không được để trống'),
+  body('email').isEmail(),
+  body('password').notEmpty(),
 ], async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
+  if (!errors.isEmpty())
     return res.status(400).json({ success: false, errors: errors.array() });
-  }
 
   const { email, password } = req.body;
-
   try {
-    const db = getDb();
-    const snapshot = await db.collection('users').where('email', '==', email).get();
-
-    if (snapshot.empty) {
+    const user = await User.findOne({ where: { email, isActive: true } });
+    if (!user)
       return res.status(401).json({ success: false, message: 'Email hoặc mật khẩu không đúng' });
-    }
 
-    const userData = snapshot.docs[0].data();
-    const isMatch = await bcrypt.compare(password, userData.password);
-
-    if (!isMatch) {
+    const match = await bcrypt.compare(password, user.password);
+    if (!match)
       return res.status(401).json({ success: false, message: 'Email hoặc mật khẩu không đúng' });
-    }
 
-    const token = signToken(userData);
-    const { password: _, ...safeUser } = userData;
-
-    res.json({
-      success: true,
-      message: 'Đăng nhập thành công!',
-      token,
-      user: safeUser,
-    });
+    const token = signToken(user);
+    const { password: _, ...safe } = user.toJSON();
+    res.json({ success: true, message: 'Đăng nhập thành công!', token, user: safe });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 
-// GET /api/auth/me — lấy thông tin user hiện tại
+// GET /api/auth/me
 router.get('/me', require('../middleware/auth').authMiddleware, async (req, res) => {
   try {
-    const db = getDb();
-    const doc = await db.collection('users').doc(req.user.uid).get();
-    if (!doc.exists) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy user' });
-    }
-    const { password: _, ...safeUser } = doc.data();
-    res.json({ success: true, user: safeUser });
+    const user = await User.findByPk(req.user.uid, {
+      attributes: { exclude: ['password'] },
+    });
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy user' });
+    res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }

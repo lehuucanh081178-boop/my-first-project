@@ -1,101 +1,122 @@
 const express = require('express');
-const router = express.Router();
-const { getDb } = require('../config/firebase');
+const router  = express.Router();
+const { Op }  = require('sequelize');
+const { Reader, ReaderCategory, ReaderTag, Review, User, Booking } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { v4: uuidv4 } = require('uuid');
 
-// GET /api/readers — lấy danh sách reader (có filter)
+// GET /api/readers — danh sách reader (filter + sort)
 router.get('/', async (req, res) => {
   try {
-    const db = getDb();
-    const { category, online, sort, limit = 20 } = req.query;
+    const { category, online, sort, limit = 20, search } = req.query;
 
-    let query = db.collection('readers').where('active', '==', true);
+    // Build where clause
+    const where = { active: true };
+    if (online === 'true') where.online = true;
+    if (search) where.name = { [Op.like]: `%${search}%` };
 
+    // Build order
+    const orderMap = {
+      rating:     [['stars', 'DESC']],
+      sessions:   [['sessions', 'DESC']],
+      price_asc:  [['priceNum', 'ASC']],
+      price_desc: [['priceNum', 'DESC']],
+    };
+    const order = orderMap[sort] || [['sessions', 'DESC']];
+
+    // Include categories & tags
+    const include = [
+      { model: ReaderCategory, as: 'categories', attributes: ['category'] },
+      { model: ReaderTag,      as: 'tags',       attributes: ['tag'] },
+    ];
+
+    // Filter by category (join)
     if (category && category !== 'all') {
-      query = query.where('categories', 'array-contains', category);
-    }
-    if (online === 'true') {
-      query = query.where('online', '==', true);
+      include[0].where = { category };
+      include[0].required = true;
     }
 
-    const snapshot = await query.limit(parseInt(limit)).get();
-    let readers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const readers = await Reader.findAll({
+      where, include, order,
+      limit: parseInt(limit),
+    });
 
-    // Sort phía client vì Firestore giới hạn compound query
-    if (sort === 'rating') readers.sort((a, b) => b.stars - a.stars);
-    if (sort === 'sessions') readers.sort((a, b) => b.sessions - a.sessions);
-    if (sort === 'price_asc') readers.sort((a, b) => a.priceNum - b.priceNum);
-    if (sort === 'price_desc') readers.sort((a, b) => b.priceNum - a.priceNum);
+    // Format response — flatten categories/tags thành array
+    const formatted = readers.map(r => {
+      const obj = r.toJSON();
+      obj.categories = obj.categories?.map(c => c.category) || [];
+      obj.tags       = obj.tags?.map(t => t.tag) || [];
+      return obj;
+    });
 
-    res.json({ success: true, readers, total: readers.length });
+    res.json({ success: true, readers: formatted, total: formatted.length });
   } catch (err) {
     console.error('Get readers error:', err);
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 
-// GET /api/readers/:id — chi tiết 1 reader
+// GET /api/readers/:id — chi tiết reader + reviews
 router.get('/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const doc = await db.collection('readers').doc(req.params.id).get();
-    if (!doc.exists) {
+    const reader = await Reader.findByPk(req.params.id, {
+      include: [
+        { model: ReaderCategory, as: 'categories', attributes: ['category'] },
+        { model: ReaderTag,      as: 'tags',       attributes: ['tag'] },
+      ],
+    });
+    if (!reader)
       return res.status(404).json({ success: false, message: 'Không tìm thấy reader' });
-    }
 
-    // Lấy reviews của reader
-    const reviewsSnap = await db.collection('reviews')
-      .where('readerId', '==', req.params.id)
-      .orderBy('createdAt', 'desc')
-      .limit(10)
-      .get();
-    const reviews = reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Lấy 10 reviews mới nhất
+    const reviews = await Review.findAll({
+      where: { readerId: req.params.id },
+      include: [{ model: User, as: 'user', attributes: ['name', 'avatar'] }],
+      order: [['createdAt', 'DESC']],
+      limit: 10,
+    });
 
-    res.json({ success: true, reader: { id: doc.id, ...doc.data() }, reviews });
+    const obj = reader.toJSON();
+    obj.categories = obj.categories?.map(c => c.category) || [];
+    obj.tags       = obj.tags?.map(t => t.tag) || [];
+
+    res.json({ success: true, reader: obj, reviews });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 
-// POST /api/readers/:id/review — đánh giá reader (cần đăng nhập)
+// POST /api/readers/:id/review — đánh giá (cần đăng nhập + đã hoàn thành booking)
 router.post('/:id/review', authMiddleware, async (req, res) => {
-  const { stars, comment } = req.body;
-  if (!stars || stars < 1 || stars > 5) {
+  const { stars, comment, bookingId } = req.body;
+  if (!stars || stars < 1 || stars > 5)
     return res.status(400).json({ success: false, message: 'Số sao không hợp lệ (1-5)' });
-  }
 
   try {
-    const db = getDb();
+    // Kiểm tra booking hợp lệ
+    const booking = await Booking.findOne({
+      where: { id: bookingId, userId: req.user.uid, readerId: req.params.id, status: 'completed' },
+    });
+    if (!booking)
+      return res.status(403).json({ success: false, message: 'Cần hoàn thành buổi xem trước khi đánh giá' });
 
-    // Kiểm tra user đã booking reader này chưa
-    const bookingSnap = await db.collection('bookings')
-      .where('userId', '==', req.user.uid)
-      .where('readerId', '==', req.params.id)
-      .where('status', '==', 'completed')
-      .get();
+    // Kiểm tra đã review chưa
+    const existing = await Review.findOne({ where: { bookingId } });
+    if (existing)
+      return res.status(409).json({ success: false, message: 'Bạn đã đánh giá buổi xem này rồi' });
 
-    if (bookingSnap.empty) {
-      return res.status(403).json({ success: false, message: 'Bạn cần hoàn thành buổi xem trước khi đánh giá' });
-    }
-
-    const reviewId = require('uuid').v4();
-    await db.collection('reviews').doc(reviewId).set({
-      id: reviewId,
-      readerId: req.params.id,
-      userId: req.user.uid,
-      userName: req.user.name,
-      stars: parseInt(stars),
-      comment: comment || '',
-      createdAt: new Date().toISOString(),
+    await Review.create({
+      id: uuidv4(), bookingId, readerId: req.params.id,
+      userId: req.user.uid, stars: parseInt(stars), comment: comment || '',
     });
 
     // Cập nhật điểm trung bình reader
-    const allReviews = await db.collection('reviews').where('readerId', '==', req.params.id).get();
-    const avgStars = allReviews.docs.reduce((sum, d) => sum + d.data().stars, 0) / allReviews.size;
-    await db.collection('readers').doc(req.params.id).update({
-      stars: Math.round(avgStars * 10) / 10,
-      reviews: allReviews.size,
-    });
+    const allReviews = await Review.findAll({ where: { readerId: req.params.id } });
+    const avg = allReviews.reduce((s, r) => s + r.stars, 0) / allReviews.length;
+    await Reader.update(
+      { stars: Math.round(avg * 10) / 10, reviews: allReviews.length },
+      { where: { id: req.params.id } }
+    );
 
     res.status(201).json({ success: true, message: 'Đánh giá thành công!' });
   } catch (err) {
@@ -103,36 +124,29 @@ router.post('/:id/review', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/readers — thêm reader mới (admin only)
+// POST /api/readers — thêm reader (admin)
 router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const db = getDb();
-    const id = require('uuid').v4();
-    const readerData = {
-      id,
-      ...req.body,
-      active: true,
-      online: false,
-      sessions: 0,
-      stars: 5.0,
-      reviews: 0,
-      createdAt: new Date().toISOString(),
-    };
-    await db.collection('readers').doc(id).set(readerData);
-    res.status(201).json({ success: true, reader: readerData });
+    const { categories = [], tags = [], ...data } = req.body;
+    const reader = await Reader.create({ id: uuidv4(), ...data });
+
+    if (categories.length) {
+      await ReaderCategory.bulkCreate(categories.map(c => ({ readerId: reader.id, category: c })));
+    }
+    if (tags.length) {
+      await ReaderTag.bulkCreate(tags.map(t => ({ readerId: reader.id, tag: t })));
+    }
+
+    res.status(201).json({ success: true, reader });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 
-// PATCH /api/readers/:id — cập nhật reader (admin only)
+// PATCH /api/readers/:id — cập nhật reader (admin)
 router.patch('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const db = getDb();
-    await db.collection('readers').doc(req.params.id).update({
-      ...req.body,
-      updatedAt: new Date().toISOString(),
-    });
+    await Reader.update(req.body, { where: { id: req.params.id } });
     res.json({ success: true, message: 'Cập nhật thành công' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
