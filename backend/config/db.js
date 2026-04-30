@@ -12,7 +12,7 @@ const sequelize = new Sequelize({
     options: {
       encrypt: false,
       trustServerCertificate: true,
-      // Windows Authentication khi không có user/pass
+      // Windows Authentication khi không có user/pas
       ...((!process.env.DB_USER) && {
         integratedSecurity: true,
         trustedConnection: true,
