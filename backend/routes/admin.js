@@ -1,10 +1,17 @@
 const express = require('express');
 const router  = express.Router();
 const { Op, fn, col, literal } = require('sequelize');
+const { body, query, param, validationResult } = require('express-validator');
 const { User, Reader, Booking, Payment, Review } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware, adminMiddleware);
+
+function clampInt(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
 
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
@@ -42,7 +49,15 @@ router.get('/stats', async (req, res) => {
 });
 
 // GET /api/admin/users
-router.get('/users', async (req, res) => {
+router.get('/users', [
+  query('limit').optional().isInt({ min: 1, max: 200 }),
+  query('page').optional().isInt({ min: 1, max: 10000 }),
+  query('search').optional().isLength({ max: 120 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { limit = 50, page = 1, search } = req.query;
     const where = search ? { [Op.or]: [
@@ -54,8 +69,8 @@ router.get('/users', async (req, res) => {
       where,
       attributes: { exclude: ['password'] },
       order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
+      limit: clampInt(limit, 1, 200, 50),
+      offset: (clampInt(page, 1, 10000, 1) - 1) * clampInt(limit, 1, 200, 50),
     });
     res.json({ success: true, users: result.rows, total: result.count });
   } catch (err) {
@@ -64,9 +79,27 @@ router.get('/users', async (req, res) => {
 });
 
 // PATCH /api/admin/users/:id
-router.patch('/users/:id', async (req, res) => {
+router.patch('/users/:id', [
+  param('id').isLength({ min: 3, max: 64 }),
+  body('name').optional().isLength({ min: 1, max: 100 }),
+  body('phone').optional().isLength({ max: 20 }),
+  body('role').optional().isIn(['user', 'admin', 'reader']),
+  body('isActive').optional().isBoolean(),
+  body('avatar').optional().isLength({ max: 500 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
-    await User.update(req.body, { where: { uid: req.params.id } });
+    const allowedFields = ['name', 'phone', 'role', 'isActive', 'avatar'];
+    const updates = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([key]) => allowedFields.includes(key))
+    );
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'Khong co truong hop le de cap nhat' });
+    }
+    await User.update(updates, { where: { uid: req.params.id } });
     res.json({ success: true, message: 'Cập nhật thành công' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
@@ -74,9 +107,16 @@ router.patch('/users/:id', async (req, res) => {
 });
 
 // GET /api/admin/revenue — doanh thu theo ngày (raw SQL cho hiệu quả)
-router.get('/revenue', async (req, res) => {
+router.get('/revenue', [
+  query('days').optional().isInt({ min: 1, max: 365 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { days = 30 } = req.query;
+    const safeDays = clampInt(days, 1, 365, 30);
     const { sequelize } = require('../config/db');
 
     const rows = await sequelize.query(`
@@ -86,7 +126,7 @@ router.get('/revenue', async (req, res) => {
         SUM(price) AS revenue
       FROM Bookings
       WHERE paymentStatus = 'paid'
-        AND paidAt >= DATEADD(DAY, -${parseInt(days)}, GETDATE())
+        AND paidAt >= DATEADD(DAY, -${safeDays}, GETDATE())
       GROUP BY CONVERT(DATE, paidAt)
       ORDER BY date DESC
     `, { type: sequelize.QueryTypes.SELECT });
@@ -98,7 +138,15 @@ router.get('/revenue', async (req, res) => {
 });
 
 // GET /api/admin/bookings/all
-router.get('/bookings/all', async (req, res) => {
+router.get('/bookings/all', [
+  query('status').optional().isIn(['pending', 'paid', 'confirmed', 'completed', 'cancelled']),
+  query('limit').optional().isInt({ min: 1, max: 200 }),
+  query('page').optional().isInt({ min: 1, max: 10000 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { status, limit = 50, page = 1 } = req.query;
     const where = status ? { status } : {};
@@ -109,8 +157,8 @@ router.get('/bookings/all', async (req, res) => {
         { model: Reader, as: 'reader', attributes: ['name'] },
       ],
       order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
+      limit: clampInt(limit, 1, 200, 50),
+      offset: (clampInt(page, 1, 10000, 1) - 1) * clampInt(limit, 1, 200, 50),
     });
     res.json({ success: true, bookings: result.rows, total: result.count });
   } catch (err) {

@@ -289,36 +289,39 @@
     <div class="modal">
       <button class="modal-close" onclick="closeModal('bookingModal')">✕</button>
       <h2>🔮 Đặt Lịch Xem Tarot</h2>
-      <form onsubmit="submitBooking(event)">
+      <div class="booking-reader-info" id="bookingReaderInfo"></div>
+      <form onsubmit="submitBooking(event)" id="bookingForm">
+        <!-- readerId ẩn — được set khi bấm Đặt Ngay -->
+        <input type="hidden" name="readerId" id="bookingReaderId">
         <div class="form-group">
           <label>Họ và tên</label>
-          <input type="text" placeholder="Nhập tên của bạn" required>
+          <input type="text" name="name" placeholder="Nhập tên của bạn" required>
         </div>
         <div class="form-group">
           <label>Số điện thoại / Zalo</label>
-          <input type="tel" placeholder="0xxx xxx xxx" required>
+          <input type="tel" name="phone" placeholder="0xxx xxx xxx" required>
         </div>
         <div class="form-group">
           <label>Chủ đề muốn xem</label>
-          <select>
-            <option>💕 Tình yêu đơn phương</option>
-            <option>👫 Mối quan hệ hiện tại</option>
-            <option>💔 Người cũ có quay lại không?</option>
-            <option>🌟 Tương lai tình cảm</option>
-            <option>❓ Người ấy có thích mình không?</option>
+          <select name="topic">
+            <option value="love_single">💕 Tình yêu đơn phương</option>
+            <option value="couple">👫 Mối quan hệ hiện tại</option>
+            <option value="exback">💔 Người cũ có quay lại không?</option>
+            <option value="future">🌟 Tương lai tình cảm</option>
+            <option value="crush">❓ Người ấy có thích mình không?</option>
           </select>
         </div>
         <div class="form-group">
           <label>Gói dịch vụ</label>
-          <select>
-            <option>Gói Cơ Bản - 50.000đ</option>
-            <option>Gói Nâng Cao - 120.000đ</option>
-            <option>Gói VIP - 250.000đ</option>
+          <select name="package">
+            <option value="basic">Gói Cơ Bản - 50.000đ (15 phút)</option>
+            <option value="advanced">Gói Nâng Cao - 120.000đ (30 phút)</option>
+            <option value="vip">Gói VIP - 250.000đ (60 phút)</option>
           </select>
         </div>
         <div class="form-group">
           <label>Câu hỏi của bạn (tùy chọn)</label>
-          <textarea placeholder="Chia sẻ thêm về tình huống của bạn..."></textarea>
+          <textarea name="question" placeholder="Chia sẻ thêm về tình huống của bạn..."></textarea>
         </div>
         <button type="submit" class="btn-submit">Xác Nhận Đặt Lịch</button>
       </form>

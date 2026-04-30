@@ -11,8 +11,29 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== SECURITY =====
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+if (isProduction && allowedOrigins.length === 0) {
+  console.error('FATAL: FRONTEND_URL is required in production');
+  process.exit(1);
+}
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(cors({
+  origin(origin, callback) {
+    if (!isProduction) return callback(null, true);
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 200,
@@ -66,7 +87,32 @@ app.use((err, req, res, next) => {
 
 // ===== START =====
 async function start() {
-  await connectDB(); // kết nối SQL Server trước
+  // Kiem tra bien moi truong bat buoc trong production
+  if (isProduction) {
+    const required = [
+      'JWT_SECRET',
+      'DB_HOST',
+      'DB_NAME',
+      'DB_USER',
+      'DB_PASS',
+      'FRONTEND_URL',
+      'BACKEND_URL',
+      'MOMO_PARTNER_CODE',
+      'MOMO_ACCESS_KEY',
+      'MOMO_SECRET_KEY',
+    ];
+    const missing  = required.filter(k => !process.env[k]);
+    if (missing.length) {
+      console.error('FATAL: Thieu bien moi truong production:', missing.join(', '));
+      process.exit(1);
+    }
+    if (process.env.JWT_SECRET.length < 32) {
+      console.error('FATAL: JWT_SECRET qua ngan, can it nhat 32 ky tu');
+      process.exit(1);
+    }
+  }
+
+  await connectDB();
   app.listen(PORT, () => {
     console.log(`
   ╔══════════════════════════════════════════╗

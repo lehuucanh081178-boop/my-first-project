@@ -136,35 +136,50 @@ const readers = [
 ];
 
 let currentCategory = 'all';
+let currentReaders = [...readers];
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
+function jsArg(value) {
+  return JSON.stringify(String(value ?? ''));
+}
 
 // ===== RENDER READERS =====
-function renderReaders(category = 'all') {
+function renderReaders(input = currentReaders) {
   const grid = document.getElementById('readersGrid');
-  const filtered = category === 'all'
-    ? readers
-    : readers.filter(r => r.category.includes(category));
+  const filtered = Array.isArray(input)
+    ? input
+    : currentReaders.filter(r => (r.category || r.categories || []).includes(input));
 
   grid.innerHTML = filtered.map(r => `
-    <div class="reader-card" onclick="openReaderDetail(${r.id})" data-category="${r.category.join(' ')}">
+    <div class="reader-card" onclick="openReaderDetail(${jsArg(r.id)})" data-category="${esc((r.category || r.categories || []).join(' '))}">
       <!-- Ảnh chân dung ma mị -->
       <div class="reader-img-wrap">
-        <img class="reader-img" src="${r.img}" alt="${r.name}" loading="lazy"
+        <img class="reader-img" src="${esc(r.img)}" alt="${esc(r.name)}" loading="lazy"
           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
-        <div class="reader-img-fallback" style="display:none">${r.avatar}</div>
+        <div class="reader-img-fallback" style="display:none">${esc(r.avatar || '🔮')}</div>
         <div class="reader-img-overlay"></div>
         <div class="reader-img-glow"></div>
         ${r.online
           ? '<div class="online-dot-img"><span></span>Online</div>'
           : '<div class="busy-dot-img">Đang bận</div>'
         }
-        <div class="reader-img-particles" id="particles-${r.id}"></div>
+        <div class="reader-img-particles" id="particles-${esc(r.id)}"></div>
       </div>
       <div class="reader-body">
         <div class="reader-name-row">
-          <h3>${r.name}</h3>
-          <span class="reader-avatar-icon">${r.avatar}</span>
+          <h3>${esc(r.name)}</h3>
+          <span class="reader-avatar-icon">${esc(r.avatar || '🔮')}</span>
         </div>
-        <div class="reader-title">${r.title}</div>
+        <div class="reader-title">${esc(r.title)}</div>
         <div class="reader-stats">
           <div class="r-stat">
             <span class="r-stat-val">${r.sessions.toLocaleString()}</span>
@@ -180,12 +195,12 @@ function renderReaders(category = 'all') {
           </div>
         </div>
         <div class="reader-tags">
-          ${r.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+          ${(r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
         </div>
-        <div class="reader-stars">${renderStars(r.stars)} <span style="color:var(--text-muted);font-size:.8rem">(${r.reviews})</span></div>
+        <div class="reader-stars">${renderStars(Number(r.stars) || 0)} <span style="color:var(--text-muted);font-size:.8rem">(${Number(r.reviews) || 0})</span></div>
         <div class="reader-price">
-          <span class="price-tag">${r.price}</span>
-          <button class="btn-book" onclick="event.stopPropagation(); bookReader(${r.id})">
+          <span class="price-tag">${esc(r.price)}</span>
+          <button class="btn-book" onclick="event.stopPropagation(); bookReader(${jsArg(r.id)})">
             ${r.online ? '⚡ Đặt Ngay' : '📅 Đặt Lịch'}
           </button>
         </div>
@@ -213,53 +228,53 @@ function filterCategory(cat, btn) {
 
 // ===== READER DETAIL =====
 function openReaderDetail(id) {
-  const r = readers.find(x => x.id === id);
+  const r = currentReaders.find(x => String(x.id) === String(id));
   if (!r) return;
 
   document.getElementById('readerModalContent').innerHTML = `
     <div class="reader-detail-header">
       <div class="reader-detail-img-wrap">
-        <img src="${r.img}" alt="${r.name}" class="reader-detail-img"
+        <img src="${esc(r.img)}" alt="${esc(r.name)}" class="reader-detail-img"
           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
-        <div class="reader-detail-avatar" style="display:none">${r.avatar}</div>
+        <div class="reader-detail-avatar" style="display:none">${esc(r.avatar || '🔮')}</div>
         <div class="reader-detail-img-glow"></div>
       </div>
       <div class="reader-detail-info">
-        <h2>${r.name} <span style="font-size:1.4rem">${r.avatar}</span></h2>
-        <div class="reader-title" style="color:var(--gold); margin-bottom:8px">${r.title}</div>
+        <h2>${esc(r.name)} <span style="font-size:1.4rem">${esc(r.avatar || '🔮')}</span></h2>
+        <div class="reader-title" style="color:var(--gold); margin-bottom:8px">${esc(r.title)}</div>
         ${r.online
           ? '<div class="online-badge">🟢 Đang online — Có thể đặt ngay</div>'
           : '<div class="busy-badge">🔴 Đang bận — Đặt lịch trước</div>'
         }
-        <div class="reader-stars" style="margin-top:8px">${renderStars(r.stars)} (${r.reviews} đánh giá)</div>
+        <div class="reader-stars" style="margin-top:8px">${renderStars(Number(r.stars) || 0)} (${Number(r.reviews) || 0} đánh giá)</div>
       </div>
     </div>
     <div class="reader-detail-stats">
       <div class="reader-detail-stat">
-        <span class="val">${r.sessions.toLocaleString()}</span>
+        <span class="val">${(Number(r.sessions) || 0).toLocaleString()}</span>
         <span class="lbl">Tổng lượt xem</span>
       </div>
       <div class="reader-detail-stat">
-        <span class="val">${r.accuracy}%</span>
+        <span class="val">${Number(r.accuracy) || 0}%</span>
         <span class="lbl">Độ chính xác</span>
       </div>
       <div class="reader-detail-stat">
-        <span class="val">${r.stars} ⭐</span>
-        <span class="lbl">${r.reviews} đánh giá</span>
+        <span class="val">${esc(r.stars)} ⭐</span>
+        <span class="lbl">${Number(r.reviews) || 0} đánh giá</span>
       </div>
     </div>
     <div class="reader-tags" style="margin-bottom:16px">
-      ${r.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+      ${(r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
     </div>
-    <p class="reader-bio">${r.bio}</p>
+    <p class="reader-bio">${esc(r.bio)}</p>
     <div class="reader-reviews-mini">
-      <h4>💬 Khách hàng nói về ${r.name}:</h4>
-      ${r.miniReviews.map(rv => `<div class="mini-review">"${rv}"</div>`).join('')}
+      <h4>💬 Khách hàng nói về ${esc(r.name)}:</h4>
+      ${(r.miniReviews || []).map(rv => `<div class="mini-review">"${esc(rv)}"</div>`).join('')}
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:16px; border-top:1px solid var(--border)">
-      <span style="font-size:1.2rem; font-weight:700; color:var(--gold)">${r.price}</span>
+      <span style="font-size:1.2rem; font-weight:700; color:var(--gold)">${esc(r.price)}</span>
       <button class="btn-book" style="padding:12px 28px; font-size:1rem"
-        onclick="bookReader(${r.id})">
+        onclick="bookReader(${jsArg(r.id)})">
         ${r.online ? '⚡ Đặt Ngay' : '📅 Đặt Lịch Trước'}
       </button>
     </div>
@@ -268,7 +283,19 @@ function openReaderDetail(id) {
 }
 
 function bookReader(id) {
-  const r = readers.find(x => x.id === id);
+  const r = currentReaders.find(x => String(x.id) === String(id));
+  if (!r) return;
+  // Set readerId vào hidden input
+  const readerIdInput = document.getElementById('bookingReaderId');
+  if (readerIdInput) readerIdInput.value = String(id);
+  // Hiện tên reader trong form
+  const infoEl = document.getElementById('bookingReaderInfo');
+  if (infoEl) {
+    infoEl.innerHTML = `<div class="booking-reader-badge">
+      🔮 Đặt lịch với <strong>${r.name}</strong>
+      <span style="color:var(--text-muted);font-size:.85rem"> — ${r.price}</span>
+    </div>`;
+  }
   closeModal('readerModal');
   openModal('bookingModal');
   showToast(`Đang đặt lịch với ${r.name} 🔮`);
@@ -318,18 +345,18 @@ async function submitBooking(e) {
   }
 
   try {
-    const formData = new FormData(form);
+    // Đọc đúng từ name attributes
+    const fd = new FormData(form);
     const data = {
-      readerId: form.dataset.readerId || 'reader-1',
-      packageType: form.querySelector('select[name="package"]')?.value || 'basic',
-      topic: form.querySelector('select[name="topic"]')?.value || '',
-      question: form.querySelector('textarea')?.value || '',
+      readerId:    fd.get('readerId')   || document.getElementById('bookingReaderId')?.value || 'reader-1',
+      packageType: fd.get('package')    || 'basic',
+      topic:       fd.get('topic')      || 'love_single',
+      question:    fd.get('question')   || '',
     };
 
     const result = await BookingsAPI.create(data);
     closeModal('bookingModal');
-
-    // Hiện modal thanh toán
+    form.reset();
     showPaymentModal(result.booking);
     showToast('✅ Đặt lịch thành công!');
   } catch (err) {
@@ -394,16 +421,16 @@ function showPaymentModal(booking) {
   document.getElementById('paymentContent').innerHTML = `
     <h2>💳 Thanh Toán</h2>
     <div class="payment-summary">
-      <p><strong>Nhà Tarot:</strong> ${booking.readerName}</p>
-      <p><strong>Gói:</strong> ${booking.packageName}</p>
-      <p><strong>Số tiền:</strong> <span style="color:var(--gold);font-size:1.3rem;font-weight:700">${booking.price.toLocaleString()}đ</span></p>
+      <p><strong>Nhà Tarot:</strong> ${esc(booking.readerName)}</p>
+      <p><strong>Gói:</strong> ${esc(booking.packageName)}</p>
+      <p><strong>Số tiền:</strong> <span style="color:var(--gold);font-size:1.3rem;font-weight:700">${(booking.price || 0).toLocaleString()}đ</span></p>
     </div>
     <div class="payment-methods">
-      <button class="pay-btn pay-momo" onclick="payWithMomo('${booking.id}')">
+      <button class="pay-btn pay-momo" onclick="payWithMomo('${esc(booking.id)}')">
         <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" style="height:28px">
         Thanh toán MoMo
       </button>
-      <button class="pay-btn pay-bank" onclick="payWithBank('${booking.id}')">
+      <button class="pay-btn pay-bank" onclick="payWithBank('${esc(booking.id)}')">
         <i class="fas fa-university"></i> Chuyển khoản ngân hàng
       </button>
     </div>
@@ -431,13 +458,13 @@ async function payWithBank(bookingId) {
     document.getElementById('paymentContent').innerHTML = `
       <h2>🏦 Chuyển Khoản Ngân Hàng</h2>
       <div class="bank-info">
-        <p><strong>Ngân hàng:</strong> ${bankInfo.bankName}</p>
-        <p><strong>Số tài khoản:</strong> <code style="color:var(--gold);font-size:1.1rem">${bankInfo.accountNumber}</code></p>
-        <p><strong>Chủ tài khoản:</strong> ${bankInfo.accountName}</p>
-        <p><strong>Số tiền:</strong> <span style="color:var(--gold);font-weight:700">${bankInfo.amount.toLocaleString()}đ</span></p>
-        <p><strong>Nội dung CK:</strong> <code style="color:#4ade80;font-size:1.1rem">${bankInfo.content}</code></p>
+        <p><strong>Ngân hàng:</strong> ${esc(bankInfo.bankName)}</p>
+        <p><strong>Số tài khoản:</strong> <code style="color:var(--gold);font-size:1.1rem">${esc(bankInfo.accountNumber)}</code></p>
+        <p><strong>Chủ tài khoản:</strong> ${esc(bankInfo.accountName)}</p>
+        <p><strong>Số tiền:</strong> <span style="color:var(--gold);font-weight:700">${(bankInfo.amount || 0).toLocaleString()}đ</span></p>
+        <p><strong>Nội dung CK:</strong> <code style="color:#4ade80;font-size:1.1rem">${esc(bankInfo.content)}</code></p>
       </div>
-      <img src="${bankInfo.qrUrl}" alt="QR Code" style="width:200px;display:block;margin:16px auto;border-radius:12px">
+      <img src="${esc(bankInfo.qrUrl)}" alt="QR Code" style="width:200px;display:block;margin:16px auto;border-radius:12px">
       <p style="color:var(--text-muted);font-size:.82rem;text-align:center">
         Quét QR hoặc chuyển khoản thủ công. Ghi đúng nội dung để xác nhận tự động.
       </p>
@@ -511,13 +538,15 @@ async function loadReaders(category = 'all') {
     // Thử gọi API backend trước
     const params = category !== 'all' ? { category } : {};
     const data = await ReadersAPI.getAll(params);
-    renderReaders(data.readers);
+    currentReaders = data.readers || [];
+    renderReaders(currentReaders);
   } catch (err) {
     // Fallback: dùng dữ liệu local nếu backend chưa chạy
     console.warn('API không khả dụng, dùng dữ liệu local');
     const filtered = category === 'all'
       ? readers
       : readers.filter(r => r.category?.includes(category) || r.categories?.includes(category));
+    currentReaders = filtered;
     renderReaders(filtered);
   }
 }
@@ -532,8 +561,8 @@ function updateAuthUI(user) {
     headerActions.innerHTML = `
       <div class="user-menu">
         <div class="user-avatar-btn" onclick="toggleUserMenu()">
-          <div class="user-avatar-mini">${currentUser.name?.charAt(0) || 'U'}</div>
-          <span>${currentUser.name?.split(' ').pop()}</span>
+          <div class="user-avatar-mini">${esc(currentUser.name?.charAt(0) || 'U')}</div>
+          <span>${esc(currentUser.name?.split(' ').pop() || 'User')}</span>
           <i class="fas fa-chevron-down" style="font-size:.7rem"></i>
         </div>
         <div class="user-dropdown" id="userDropdown">

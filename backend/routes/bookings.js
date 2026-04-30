@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const { body, query, param, validationResult } = require('express-validator');
 const { Booking, Reader, User, Notification } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { sendBookingConfirmation } = require('../config/email');
@@ -11,8 +12,24 @@ const PACKAGES = {
   vip:      { name: 'Gói VIP',      price: 250000, duration: 60 },
 };
 
+function clampInt(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 // POST /api/bookings — tạo đơn
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', [
+  authMiddleware,
+  body('readerId').isLength({ min: 3, max: 64 }),
+  body('packageType').isIn(['basic', 'advanced', 'vip']),
+  body('topic').optional().isLength({ max: 200 }),
+  body('question').optional().isLength({ max: 4000 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   const { readerId, packageType, topic, question, scheduledAt } = req.body;
   if (!readerId || !packageType)
     return res.status(400).json({ success: false, message: 'Thiếu thông tin đặt lịch' });
@@ -88,7 +105,17 @@ router.get('/my', authMiddleware, async (req, res) => {
 });
 
 // GET /api/bookings/all — tất cả đơn (admin)
-router.get('/all', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/all', [
+  authMiddleware,
+  adminMiddleware,
+  query('status').optional().isIn(['pending', 'paid', 'confirmed', 'completed', 'cancelled']),
+  query('limit').optional().isInt({ min: 1, max: 200 }),
+  query('page').optional().isInt({ min: 1, max: 10000 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { status, limit = 50, page = 1 } = req.query;
     const where = status ? { status } : {};
@@ -99,8 +126,8 @@ router.get('/all', authMiddleware, adminMiddleware, async (req, res) => {
         { model: Reader, as: 'reader', attributes: ['name', 'img'] },
       ],
       order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
+      limit: clampInt(limit, 1, 200, 50),
+      offset: (clampInt(page, 1, 10000, 1) - 1) * clampInt(limit, 1, 200, 50),
     });
     res.json({ success: true, bookings: bookings.rows, total: bookings.count });
   } catch (err) {
@@ -109,19 +136,56 @@ router.get('/all', authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // PATCH /api/bookings/:id/status
-router.patch('/:id/status', authMiddleware, async (req, res) => {
+router.patch('/:id/status', [
+  authMiddleware,
+  param('id').isLength({ min: 3, max: 64 }),
+  body('status').isIn(['pending', 'paid', 'confirmed', 'completed', 'cancelled']),
+  body('cancelReason').optional().isLength({ max: 500 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   const { status, cancelReason } = req.body;
-  const valid = ['pending', 'paid', 'confirmed', 'completed', 'cancelled'];
-  if (!valid.includes(status))
-    return res.status(400).json({ success: false, message: 'Trạng thái không hợp lệ' });
+
+  // Trạng thái hợp lệ theo từng role
+  const USER_ALLOWED  = ['cancelled'];          // user chỉ được hủy đơn của mình
+  const isAdmin = req.user.role === 'admin';
+  const isReader = req.user.role === 'reader';
+  const allowed = isAdmin
+    ? ['pending', 'paid', 'confirmed', 'completed', 'cancelled']
+    : isReader
+      ? ['confirmed', 'completed', 'cancelled']
+      : USER_ALLOWED;
+
+  if (!allowed.includes(status)) {
+    return res.status(403).json({
+      success: false,
+      message: isAdmin
+        ? 'Trang thai khong hop le'
+        : 'Ban chi co the huy don cua minh',
+    });
+  }
 
   try {
     const booking = await Booking.findByPk(req.params.id);
     if (!booking)
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn' });
+      return res.status(404).json({ success: false, message: 'Khong tim thay don' });
 
-    if (req.user.role === 'user' && booking.userId !== req.user.uid)
-      return res.status(403).json({ success: false, message: 'Không có quyền' });
+    // User chi duoc thao tac tren don cua chinh minh
+    if (!isAdmin && !isReader && booking.userId !== req.user.uid)
+      return res.status(403).json({ success: false, message: 'Khong co quyen' });
+
+    if (isReader) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tai khoan reader chua duoc gan ho so reader de xu ly don',
+      });
+    }
+
+    // Khong cho huy don da hoan thanh hoac da huy
+    if (['completed', 'cancelled'].includes(booking.status))
+      return res.status(400).json({ success: false, message: `Don da o trang thai "${booking.status}", khong the thay doi` });
 
     const updates = { status };
     if (status === 'completed') updates.completedAt = new Date();
@@ -129,18 +193,19 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
 
     await booking.update(updates);
 
-    // Tăng sessions reader khi completed
+    // Tang sessions reader khi completed
     if (status === 'completed') {
       await Reader.increment('sessions', { where: { id: booking.readerId } });
     }
 
-    res.json({ success: true, message: 'Cập nhật thành công' });
+    res.json({ success: true, message: 'Cap nhat thanh cong' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Lỗi server' });
+    res.status(500).json({ success: false, message: 'Loi server' });
   }
 });
 
 // GET /api/bookings/notifications — thông báo của user
+// ĐẶT TRƯỚC /:id để tránh Express match "notifications" như một :id
 router.get('/notifications', authMiddleware, async (req, res) => {
   try {
     const notifs = await Notification.findAll({
@@ -149,6 +214,27 @@ router.get('/notifications', authMiddleware, async (req, res) => {
       limit: 20,
     });
     res.json({ success: true, notifications: notifs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// GET /api/bookings/:id — chi tiết 1 booking
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findOne({
+      where: { id: req.params.id },
+      include: [
+        { model: Reader, as: 'reader', attributes: ['name', 'img', 'title'] },
+        { model: User,   as: 'user',   attributes: ['name', 'email'] },
+      ],
+    });
+    if (!booking)
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn' });
+    // User chỉ xem đơn của mình, admin xem tất cả
+    if (req.user.role === 'user' && booking.userId !== req.user.uid)
+      return res.status(403).json({ success: false, message: 'Không có quyền' });
+    res.json({ success: true, booking });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }

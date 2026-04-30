@@ -84,6 +84,13 @@ async function runTests() {
     ? pass(`Lich su dat: ${myBookings.data.bookings?.length} don`)
     : fail('Khong lay duoc lich su');
 
+  // ===== SECURITY =====
+  section('Security');
+  const noToken = await req('GET', '/bookings/my');
+  noToken.status === 401
+    ? pass('Endpoint bao ve dung: tra 401 khi khong co token')
+    : fail('Endpoint khong bao ve: ' + noToken.status);
+
   // ===== PAYMENT =====
   section('Payment');
   if (bookingId) {

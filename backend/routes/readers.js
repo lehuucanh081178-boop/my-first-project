@@ -1,12 +1,27 @@
 const express = require('express');
 const router  = express.Router();
 const { Op }  = require('sequelize');
+const { body, query, param, validationResult } = require('express-validator');
 const { Reader, ReaderCategory, ReaderTag, Review, User, Booking } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 
+function clampInt(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 // GET /api/readers — danh sách reader (filter + sort)
-router.get('/', async (req, res) => {
+router.get('/', [
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('sort').optional().isIn(['rating', 'sessions', 'price_asc', 'price_desc']),
+  query('search').optional().isLength({ max: 120 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { category, online, sort, limit = 20, search } = req.query;
 
@@ -38,7 +53,7 @@ router.get('/', async (req, res) => {
 
     const readers = await Reader.findAll({
       where, include, order,
-      limit: parseInt(limit),
+      limit: clampInt(limit, 1, 100, 20),
     });
 
     // Format response — flatten categories/tags thành array
@@ -87,7 +102,17 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/readers/:id/review — đánh giá (cần đăng nhập + đã hoàn thành booking)
-router.post('/:id/review', authMiddleware, async (req, res) => {
+router.post('/:id/review', [
+  authMiddleware,
+  param('id').isLength({ min: 3, max: 64 }),
+  body('bookingId').isLength({ min: 3, max: 64 }),
+  body('stars').isInt({ min: 1, max: 5 }),
+  body('comment').optional().isLength({ max: 2000 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   const { stars, comment, bookingId } = req.body;
   if (!stars || stars < 1 || stars > 5)
     return res.status(400).json({ success: false, message: 'Số sao không hợp lệ (1-5)' });
@@ -125,7 +150,26 @@ router.post('/:id/review', authMiddleware, async (req, res) => {
 });
 
 // POST /api/readers — thêm reader (admin)
-router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
+router.post('/', [
+  authMiddleware,
+  adminMiddleware,
+  body('name').isLength({ min: 1, max: 100 }),
+  body('title').isLength({ min: 1, max: 200 }),
+  body('price').isLength({ min: 1, max: 50 }),
+  body('priceNum').isInt({ min: 10000, max: 100000000 }),
+  body('img').optional().isLength({ max: 500 }),
+  body('bio').optional().isLength({ max: 2000 }),
+  body('accuracy').optional().isInt({ min: 50, max: 100 }),
+  body('stars').optional().isFloat({ min: 1, max: 5 }),
+  body('online').optional().isBoolean(),
+  body('active').optional().isBoolean(),
+  body('categories').optional().isArray({ max: 20 }),
+  body('tags').optional().isArray({ max: 20 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
     const { categories = [], tags = [], ...data } = req.body;
     const reader = await Reader.create({ id: uuidv4(), ...data });
@@ -144,9 +188,39 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // PATCH /api/readers/:id — cập nhật reader (admin)
-router.patch('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+router.patch('/:id', [
+  authMiddleware,
+  adminMiddleware,
+  param('id').isLength({ min: 3, max: 64 }),
+  body('name').optional().isLength({ min: 1, max: 100 }),
+  body('title').optional().isLength({ min: 1, max: 200 }),
+  body('img').optional().isLength({ max: 500 }),
+  body('bio').optional().isLength({ max: 2000 }),
+  body('price').optional().isLength({ min: 1, max: 50 }),
+  body('priceNum').optional().isInt({ min: 10000, max: 100000000 }),
+  body('accuracy').optional().isInt({ min: 50, max: 100 }),
+  body('stars').optional().isFloat({ min: 1, max: 5 }),
+  body('reviews').optional().isInt({ min: 0, max: 1000000 }),
+  body('sessions').optional().isInt({ min: 0, max: 10000000 }),
+  body('online').optional().isBoolean(),
+  body('active').optional().isBoolean(),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
   try {
-    await Reader.update(req.body, { where: { id: req.params.id } });
+    const allowedFields = [
+      'name', 'title', 'img', 'bio', 'price', 'priceNum',
+      'accuracy', 'stars', 'reviews', 'sessions', 'online', 'active',
+    ];
+    const updates = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([key]) => allowedFields.includes(key))
+    );
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'Khong co truong hop le de cap nhat' });
+    }
+    await Reader.update(updates, { where: { id: req.params.id } });
     res.json({ success: true, message: 'Cập nhật thành công' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });

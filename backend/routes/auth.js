@@ -6,10 +6,12 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const { User } = require('../models');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'tarotlove_dev_secret_change_me';
+
 function signToken(user) {
   return jwt.sign(
     { uid: user.uid, email: user.email, role: user.role, name: user.name },
-    process.env.JWT_SECRET || 'tarotlove_secret_2024',
+    JWT_SECRET,
     { expiresIn: '7d' }
   );
 }
@@ -83,6 +85,40 @@ router.get('/me', require('../middleware/auth').authMiddleware, async (req, res)
     res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// PATCH /api/auth/me
+router.patch('/me', [
+  require('../middleware/auth').authMiddleware,
+  body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Tên không hợp lệ'),
+  body('phone').optional().trim().isLength({ max: 20 }).withMessage('Số điện thoại không hợp lệ'),
+  body('password').optional().isLength({ min: 6, max: 128 }).withMessage('Mật khẩu tối thiểu 6 ký tự'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
+  try {
+    const updates = {};
+    if (typeof req.body.name === 'string') updates.name = req.body.name.trim();
+    if (typeof req.body.phone === 'string') updates.phone = req.body.phone.trim();
+    if (typeof req.body.password === 'string' && req.body.password.trim()) {
+      updates.password = await bcrypt.hash(req.body.password, 12);
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'Không có dữ liệu hợp lệ để cập nhật' });
+    }
+
+    await User.update(updates, { where: { uid: req.user.uid } });
+    const user = await User.findByPk(req.user.uid, { attributes: { exclude: ['password'] } });
+    const token = signToken(user);
+    return res.json({ success: true, message: 'Cập nhật hồ sơ thành công', user, token });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 

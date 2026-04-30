@@ -86,12 +86,24 @@
 
     <!-- TAB: USERS -->
     <div class="tab-content" id="tab-users">
-      <div class="tab-toolbar"><h3>Quản Lý Users</h3></div>
+      <div class="tab-toolbar">
+        <h3>Quản Lý Users</h3>
+        <div class="admin-toolbar-controls">
+          <input id="userSearchInput" type="text" placeholder="Tìm theo tên hoặc email...">
+          <button class="admin-btn-sm" onclick="runUserSearch()">Tìm</button>
+          <button class="admin-btn-sm" onclick="resetUserSearch()">Reset</button>
+        </div>
+      </div>
       <div class="admin-table-wrap">
         <table class="admin-table">
           <thead><tr><th>Tên</th><th>Email</th><th>Role</th><th>Ngày tạo</th><th>Hành động</th></tr></thead>
           <tbody id="usersTableBody"></tbody>
         </table>
+      </div>
+      <div class="admin-pagination">
+        <button class="admin-btn-sm" id="usersPrevBtn" onclick="changeUsersPage(-1)">← Trước</button>
+        <span id="usersPageInfo">Trang 1</span>
+        <button class="admin-btn-sm" id="usersNextBtn" onclick="changeUsersPage(1)">Sau →</button>
       </div>
     </div>
 
@@ -109,12 +121,89 @@
     </div>
   </main>
 
+  <div class="modal-overlay admin-modal-overlay" id="addReaderModal">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h3>Thêm Reader Mới</h3>
+        <button class="admin-modal-close" onclick="closeAddReader()">✕</button>
+      </div>
+      <form id="addReaderForm" class="admin-form-grid" onsubmit="submitAddReader(event)">
+        <label>
+          <span>Tên reader</span>
+          <input type="text" name="name" required maxlength="100" placeholder="Ví dụ: Luna Nguyệt">
+        </label>
+        <label>
+          <span>Chức danh</span>
+          <input type="text" name="title" required maxlength="200" placeholder="Chuyên gia Tarot Tình Yêu">
+        </label>
+        <label>
+          <span>Giá hiển thị</span>
+          <input type="text" name="price" required maxlength="50" placeholder="50.000đ / buổi">
+        </label>
+        <label>
+          <span>Giá số (VND)</span>
+          <input type="number" name="priceNum" required min="10000" step="1000" placeholder="50000">
+        </label>
+        <label>
+          <span>Avatar URL</span>
+          <input type="url" name="img" required placeholder="https://...">
+        </label>
+        <label>
+          <span>Độ chính xác (%)</span>
+          <input type="number" name="accuracy" min="50" max="100" value="90">
+        </label>
+        <label>
+          <span>Đánh giá sao</span>
+          <input type="number" name="stars" min="1" max="5" step="0.1" value="4.8">
+        </label>
+        <label>
+          <span>Trạng thái online</span>
+          <select name="online">
+            <option value="true">Online</option>
+            <option value="false">Offline</option>
+          </select>
+        </label>
+        <label class="full-row">
+          <span>Tiểu sử</span>
+          <textarea name="bio" rows="3" maxlength="2000" placeholder="Giới thiệu ngắn về reader"></textarea>
+        </label>
+        <label class="full-row">
+          <span>Categories (phân tách bằng dấu phẩy)</span>
+          <input type="text" name="categories" placeholder="love, couple">
+        </label>
+        <label class="full-row">
+          <span>Tags (phân tách bằng dấu phẩy)</span>
+          <input type="text" name="tags" placeholder="Tình yêu, Cặp đôi">
+        </label>
+        <div class="admin-form-actions full-row">
+          <button type="button" class="admin-btn" onclick="closeAddReader()">Hủy</button>
+          <button type="submit" class="admin-btn">Lưu Reader</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script src="assets/js/api.js"></script>
   <script>
     if (!Auth.isLoggedIn() || Auth.getUser()?.role !== 'admin') {
-      alert('Bạn không có quyền truy cập trang này');
+      alert('Ban khong co quyen truy cap trang nay');
       window.location.href = 'index.html';
+    }
+    let usersPage = 1;
+    let usersLimit = 10;
+    let usersTotal = 0;
+    let usersSearch = '';
+
+    // ===== ESCAPE HTML — chong XSS =====
+    function esc(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -155,16 +244,16 @@
           const readerName = b.reader?.name || b.readerName || '—';
           return `
           <tr>
-            <td><code>${b.id?.slice(0,8)}</code></td>
-            <td>${userName}</td>
-            <td>${readerName}</td>
-            <td>${b.packageName}</td>
+            <td><code>${esc(b.id?.slice(0,8))}</code></td>
+            <td>${esc(userName)}</td>
+            <td>${esc(readerName)}</td>
+            <td>${esc(b.packageName)}</td>
             <td style="color:var(--gold)">${(b.price||0).toLocaleString()}d</td>
-            <td><span class="status-badge status-${b.status}">${statusLabel(b.status)}</span></td>
+            <td><span class="status-badge status-${esc(b.status)}">${esc(statusLabel(b.status))}</span></td>
             <td>
-              ${b.status === 'paid' ? `<button class="admin-btn-sm" onclick="confirmBooking('${b.id}')">Xac nhan</button>` : ''}
+              ${b.status === 'paid' ? `<button class="admin-btn-sm" onclick="confirmBooking('${esc(b.id)}')">Xac nhan</button>` : ''}
               ${b.status !== 'cancelled' && b.status !== 'completed'
-                ? `<button class="admin-btn-sm danger" onclick="cancelBooking('${b.id}')">Huy</button>` : ''}
+                ? `<button class="admin-btn-sm danger" onclick="cancelBooking('${esc(b.id)}')">Huy</button>` : ''}
             </td>
           </tr>`;
         }).join('');
@@ -184,18 +273,18 @@
         const { readers } = await ReadersAPI.getAll();
         document.getElementById('adminReaders').innerHTML = readers.map(r => `
           <div class="reader-admin-card">
-            <img src="${r.img}" alt="${r.name}" class="reader-admin-img">
+            <img src="${esc(r.img)}" alt="${esc(r.name)}" class="reader-admin-img">
             <div class="reader-admin-info">
-              <strong>${r.name}</strong>
-              <span>${r.title}</span>
+              <strong>${esc(r.name)}</strong>
+              <span>${esc(r.title)}</span>
               <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-                <span class="${r.online ? 'online-dot' : 'offline-dot'}">${r.online ? '🟢 Online' : '🔴 Offline'}</span>
-                <span style="color:var(--gold)">⭐ ${r.stars}</span>
-                <span style="color:var(--text-muted)">${r.sessions} lượt</span>
+                <span class="${r.online ? 'online-dot' : 'offline-dot'}">${r.online ? 'Online' : 'Offline'}</span>
+                <span style="color:var(--gold)">${esc(String(r.stars))}</span>
+                <span style="color:var(--text-muted)">${esc(String(r.sessions))} luot</span>
               </div>
             </div>
             <div class="reader-admin-actions">
-              <button class="admin-btn-sm" onclick="toggleOnline('${r.id}', ${!r.online})">${r.online ? 'Set Offline' : 'Set Online'}</button>
+              <button class="admin-btn-sm" onclick="toggleOnline('${esc(r.id)}', ${!r.online})">${r.online ? 'Set Offline' : 'Set Online'}</button>
             </div>
           </div>
         `).join('');
@@ -206,21 +295,51 @@
 
     async function loadAdminUsers() {
       try {
-        const { users } = await AdminAPI.users();
+        const { users, total } = await AdminAPI.users({ page: usersPage, limit: usersLimit, search: usersSearch || undefined });
+        usersTotal = total || 0;
         document.getElementById('usersTableBody').innerHTML = users.map(u => `
           <tr>
-            <td>${u.name}</td>
-            <td>${u.email}</td>
-            <td><span class="role-badge">${u.role}</span></td>
+            <td>${esc(u.name)}</td>
+            <td>${esc(u.email)}</td>
+            <td><span class="role-badge">${esc(u.role)}</span></td>
             <td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td>
             <td>
-              ${u.role !== 'admin' ? `<button class="admin-btn-sm" onclick="makeAdmin('${u.uid}')">Make Admin</button>` : ''}
+              ${u.role !== 'admin' ? `<button class="admin-btn-sm" onclick="makeAdmin('${esc(u.uid)}')">Make Admin</button>` : ''}
             </td>
           </tr>
-        `).join('') || '<tr><td colspan="5" style="text-align:center">Chưa có users</td></tr>';
+        `).join('') || '<tr><td colspan="5" style="text-align:center">Chua co users</td></tr>';
+        updateUsersPagination();
       } catch (err) {
         document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Lỗi tải users</td></tr>';
       }
+    }
+
+    function updateUsersPagination() {
+      const totalPages = Math.max(1, Math.ceil(usersTotal / usersLimit));
+      document.getElementById('usersPageInfo').textContent = `Trang ${usersPage}/${totalPages} • ${usersTotal} users`;
+      document.getElementById('usersPrevBtn').disabled = usersPage <= 1;
+      document.getElementById('usersNextBtn').disabled = usersPage >= totalPages;
+    }
+
+    function changeUsersPage(delta) {
+      const totalPages = Math.max(1, Math.ceil(usersTotal / usersLimit));
+      const nextPage = usersPage + delta;
+      if (nextPage < 1 || nextPage > totalPages) return;
+      usersPage = nextPage;
+      loadAdminUsers();
+    }
+
+    function runUserSearch() {
+      usersSearch = document.getElementById('userSearchInput').value.trim();
+      usersPage = 1;
+      loadAdminUsers();
+    }
+
+    function resetUserSearch() {
+      usersSearch = '';
+      usersPage = 1;
+      document.getElementById('userSearchInput').value = '';
+      loadAdminUsers();
     }
 
     async function loadRevenue(days) {
@@ -285,7 +404,67 @@
       } catch (err) { showToast('❌ Lỗi seed: ' + err.message); }
     }
 
-    function openAddReader() { showToast('Tinh nang them reader dang phat trien'); }
+    function openAddReader() {
+      document.getElementById('addReaderModal').classList.add('show');
+    }
+
+    function closeAddReader() {
+      document.getElementById('addReaderModal').classList.remove('show');
+    }
+
+    function toStringArray(raw) {
+      return String(raw || '')
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+    }
+
+    async function submitAddReader(event) {
+      event.preventDefault();
+      const form = event.target;
+      const fd = new FormData(form);
+      const payload = {
+        name: String(fd.get('name') || '').trim(),
+        title: String(fd.get('title') || '').trim(),
+        price: String(fd.get('price') || '').trim(),
+        priceNum: Number(fd.get('priceNum') || 0),
+        img: String(fd.get('img') || '').trim(),
+        bio: String(fd.get('bio') || '').trim(),
+        accuracy: Number(fd.get('accuracy') || 90),
+        stars: Number(fd.get('stars') || 4.8),
+        reviews: 0,
+        sessions: 0,
+        online: fd.get('online') === 'true',
+        active: true,
+        categories: toStringArray(fd.get('categories')),
+        tags: toStringArray(fd.get('tags')),
+      };
+
+      if (!payload.name || !payload.title || !payload.price || !payload.priceNum || !payload.img) {
+        showToast('❌ Vui lòng điền đủ thông tin bắt buộc');
+        return;
+      }
+      if (payload.stars < 1 || payload.stars > 5) {
+        showToast('❌ Đánh giá sao phải từ 1 đến 5');
+        return;
+      }
+      if (payload.accuracy < 50 || payload.accuracy > 100) {
+        showToast('❌ Độ chính xác phải từ 50 đến 100');
+        return;
+      }
+
+      try {
+        await ReadersAPI.create(payload);
+        form.reset();
+        closeAddReader();
+        showToast('✅ Đã thêm reader mới');
+        loadAdminReaders();
+        loadStats();
+      } catch (err) {
+        showToast('❌ Lỗi thêm reader: ' + (err.message || 'Không thể tạo reader'));
+      }
+    }
 
     function showTab(name, el) {
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));

@@ -139,14 +139,24 @@
     let allBookingsData = [];
     const user = Auth.getUser();
 
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      }[ch]));
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       if (!user) return;
 
       // Hiện thông tin user
       document.getElementById('welcomeName').textContent = `Chào mừng ${user.name}! 👋`;
       document.getElementById('dashUser').innerHTML = `
-        <div class="user-avatar-mini">${user.name?.charAt(0)}</div>
-        <span>${user.name}</span>
+        <div class="user-avatar-mini">${esc(user.name?.charAt(0) || 'U')}</div>
+        <span>${esc(user.name)}</span>
       `;
       document.getElementById('profileAvatar').textContent = user.name?.charAt(0);
       document.getElementById('profileName').textContent = user.name;
@@ -193,12 +203,12 @@
         <div class="booking-item">
           <div class="booking-icon">🔮</div>
           <div class="booking-info">
-            <strong>${b.readerName}</strong>
-            <span>${b.packageName} — ${b.price?.toLocaleString()}đ</span>
+            <strong>${esc(b.reader?.name || b.readerName || 'Reader')}</strong>
+            <span>${esc(b.packageName)} — ${(b.price || 0).toLocaleString()}đ</span>
             <span style="font-size:.75rem;color:var(--text-muted)">${new Date(b.createdAt).toLocaleDateString('vi-VN')}</span>
           </div>
-          <div class="booking-status status-${b.status}">${statusLabel(b.status)}</div>
-          ${b.status === 'pending' ? `<button class="btn-pay-now" onclick="goPayBooking('${b.id}','${b.price}')">Thanh toán</button>` : ''}
+          <div class="booking-status status-${esc(b.status)}">${esc(statusLabel(b.status))}</div>
+          ${b.status === 'pending' ? `<button class="btn-pay-now" onclick="goPayBooking('${esc(b.id)}','${esc(b.price)}')">Thanh toán</button>` : ''}
         </div>
       `).join('');
     }
@@ -227,9 +237,39 @@
       }[name] || name;
     }
 
-    function updateProfile(e) {
+    async function updateProfile(e) {
       e.preventDefault();
-      showToast('✅ Cập nhật thành công! (Tính năng đầy đủ cần backend)');
+      const name = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const password = document.getElementById('editPassword').value.trim();
+
+      if (!name) {
+        showToast('❌ Vui lòng nhập họ tên');
+        return;
+      }
+      if (password && password.length < 6) {
+        showToast('❌ Mật khẩu mới phải có ít nhất 6 ký tự');
+        return;
+      }
+
+      try {
+        const payload = { name, phone };
+        if (password) payload.password = password;
+        const result = await AuthAPI.updateMe(payload);
+        Auth.save(result.token, result.user);
+        document.getElementById('profileName').textContent = result.user.name;
+        document.getElementById('profileEmail').textContent = result.user.email;
+        document.getElementById('welcomeName').textContent = `Chào mừng ${result.user.name}! 👋`;
+        document.getElementById('dashUser').innerHTML = `
+          <div class="user-avatar-mini">${esc(result.user.name?.charAt(0) || 'U')}</div>
+          <span>${esc(result.user.name)}</span>
+        `;
+        document.getElementById('profileAvatar').textContent = result.user.name?.charAt(0) || 'U';
+        document.getElementById('editPassword').value = '';
+        showToast('✅ Cập nhật hồ sơ thành công');
+      } catch (err) {
+        showToast('❌ ' + (err.message || 'Cập nhật hồ sơ thất bại'));
+      }
     }
 
     function handleLogout() {

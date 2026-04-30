@@ -249,3 +249,13 @@
   .stats-row { grid-template-columns: 1fr 1fr; }
   .tab-content { padding: 20px 16px; }
 }
+
+/* ===== BOOKING READER BADGE ===== */
+.booking-reader-badge {
+  background: rgba(124,58,237,0.12);
+  border: 1px solid rgba(124,58,237,0.3);
+  border-radius: 10px; padding: 10px 16px;
+  margin-bottom: 16px; font-size: 0.95rem;
+  color: var(--text);
+}
+.booking-reader-badge strong { color: var(--gold); }

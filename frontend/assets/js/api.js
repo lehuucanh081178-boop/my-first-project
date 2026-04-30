@@ -39,6 +39,7 @@ const AuthAPI = {
   register: (data) => apiCall('/auth/register', { method: 'POST', body: data }),
   login:    (data) => apiCall('/auth/login',    { method: 'POST', body: data }),
   me:       ()     => apiCall('/auth/me'),
+  updateMe: (data) => apiCall('/auth/me',       { method: 'PATCH', body: data }),
 };
 
 // ===== READERS API =====
@@ -49,6 +50,8 @@ const ReadersAPI = {
   },
   getOne:   (id)  => apiCall(`/readers/${id}`),
   review:   (id, data) => apiCall(`/readers/${id}/review`, { method: 'POST', body: data }),
+  create:   (data) => apiCall('/readers', { method: 'POST', body: data }),
+  update:   (id, data) => apiCall(`/readers/${id}`, { method: 'PATCH', body: data }),
 };
 
 // ===== BOOKINGS API =====
@@ -67,9 +70,18 @@ const PaymentAPI = {
 // ===== ADMIN API =====
 const AdminAPI = {
   stats:   ()     => apiCall('/admin/stats'),
-  users:   ()     => apiCall('/admin/users'),
+  users:   (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return apiCall(`/admin/users${q ? '?' + q : ''}`);
+  },
   revenue: (days) => apiCall(`/admin/revenue?days=${days || 30}`),
-  allBookings: (status) => apiCall(`/admin/bookings/all${status ? '?status=' + status : ''}`),
+  allBookings: (status, params = {}) => {
+    const query = new URLSearchParams({
+      ...(status ? { status } : {}),
+      ...params,
+    }).toString();
+    return apiCall(`/admin/bookings/all${query ? '?' + query : ''}`);
+  },
   updateUser: (id, data) => apiCall(`/admin/users/${id}`, { method: 'PATCH', body: data }),
   seed:    ()     => apiCall('/admin/seed', { method: 'POST' }),
 };
